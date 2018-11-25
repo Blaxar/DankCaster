@@ -1,0 +1,9 @@
+[package]
+name = "dankcaster-gui"
+version = "0.1.0"
+authors = ["Blaxar Waldarax <blaxar.waldarax@gmail.com>"]
+
+[dependencies]
+glib = "0.6"
+gstreamer = "0.12.0"
+dankcaster = {path = "../dankcaster"}

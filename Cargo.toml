@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+  "gst-plugin",
+  "dankcaster",
+  "gui",
+]
