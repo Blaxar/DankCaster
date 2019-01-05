@@ -24,6 +24,8 @@ mod sink;
 
 fn plugin_init(plugin: &gst::Plugin) -> bool {
     source::register(plugin);
+    sink::register(plugin);
+    scene::register(plugin);
     true
 }
 

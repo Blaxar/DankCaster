@@ -9,54 +9,62 @@ use gst_plugin::base_src::*;
 use gst_plugin::element::*;
 use gobject_subclass::object::*;
 
-struct DkcSourceStatic;
-struct DkcSource {
+struct DkcDummySourceStatic;
+struct DkcDummySource {
     cat: gst::DebugCategory,
 }
 
-impl ImplTypeStatic<Bin> for DkcSourceStatic {
+impl ImplTypeStatic<Bin> for DkcDummySourceStatic {
     fn get_name(&self) -> &str {
-        "DkcSource"
+        "DkcDummySource"
     }
 
     fn new(&self, element: &Bin) -> Box<BinImpl<Bin>> {
-        DkcSource::new(element)
+        DkcDummySource::new(element)
     }
 
     fn class_init(&self, klass: &mut BinClass) {
-        DkcSource::class_init(klass);
+        DkcDummySource::class_init(klass);
     }
 }
 
-impl ObjectImpl<Bin> for DkcSource {
+impl ObjectImpl<Bin> for DkcDummySource {
     fn constructed(&self, bin: &Bin) {
         bin.parent_constructed();
 
-        let elem = gst::ElementFactory::make("videotestsrc", "testsource")
-            .expect("Could not create source element.");
-        let pad = elem.get_static_pad("src").unwrap();
-        println!("{:?}", pad);
+        let video_elem = gst::ElementFactory::make("videotestsrc", "testvideosource")
+            .expect("Could not create video source element.");
 
-        self.add_element(bin, &elem);
+        let audio_elem = gst::ElementFactory::make("audiotestsrc", "testaudiosource")
+            .expect("Could not create audio source element.");
 
-        let ghost_pad = gst::GhostPad::new("src", &pad).unwrap(); //segfault
-        println!("{:?}", ghost_pad);
+        self.add_element(bin, &video_elem);
+        self.add_element(bin, &audio_elem);
 
-        bin.add_pad(&ghost_pad).unwrap();
+        let video_pad = video_elem.get_static_pad("src").unwrap();
+
+        let audio_pad = audio_elem.get_static_pad("src").unwrap();
+
+        let video_ghost_pad = gst::GhostPad::new("video_src", &video_pad).unwrap();
+
+        let audio_ghost_pad = gst::GhostPad::new("audio_src", &audio_pad).unwrap();
+
+        bin.add_pad(&video_ghost_pad).unwrap();
+        bin.add_pad(&audio_ghost_pad).unwrap();
     }
 }
 
-impl ElementImpl<Bin> for DkcSource {}
-impl BinImpl<Bin> for DkcSource {}
+impl ElementImpl<Bin> for DkcDummySource {}
+impl BinImpl<Bin> for DkcDummySource {}
 
-impl DkcSource {
+impl DkcDummySource {
     fn new(bin: &Bin) -> Box<BinImpl<Bin>> {
         Box::new({
             Self {
                 cat: gst::DebugCategory::new(
                     "dkcsource",
                     gst::DebugColorFlags::empty(),
-                    "DankCaster source element",
+                    "DankCaster dummy source element",
                 ),
             }
         })
@@ -64,9 +72,9 @@ impl DkcSource {
 
     fn class_init(klass: &mut BinClass) {
         klass.set_metadata(
-            "DankCaster source element",
+            "DankCaster dummy source element",
             "Audio/Video",
-            "DankCaster source element",
+            "DankCaster dummy source element",
             "Blaxar Waldarax <blaxar.waldarax@gmail.com>",
         );
 
@@ -75,18 +83,32 @@ impl DkcSource {
             &[],
         );
 
-        let src_pad_template = gst::PadTemplate::new(
-            "src",
+        let audio_caps = gst::Caps::new_simple(
+            "audio/x-raw",
+            &[],
+        );
+
+        let video_src_pad_template = gst::PadTemplate::new(
+            "video_src",
             gst::PadDirection::Src,
             gst::PadPresence::Always,
             &video_caps,
         );
-        klass.add_pad_template(src_pad_template);
+
+        let audio_src_pad_template = gst::PadTemplate::new(
+            "audio_src",
+            gst::PadDirection::Src,
+            gst::PadPresence::Always,
+            &audio_caps,
+        );
+
+        klass.add_pad_template(video_src_pad_template);
+        klass.add_pad_template(audio_src_pad_template);
     }
 }
 
 
 pub fn register(plugin: &gst::Plugin) {
-    let type_ = register_type(DkcSourceStatic);
-    gst::Element::register(plugin, "dkcsource", 0, type_);
+    let type_ = register_type(DkcDummySourceStatic);
+    gst::Element::register(plugin, "dkcdummysource", 0, type_);
 }
