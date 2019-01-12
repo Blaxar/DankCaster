@@ -9,6 +9,8 @@ use gst_plugin::base_src::*;
 use gst_plugin::element::*;
 use gobject_subclass::object::*;
 
+use plugin_once;
+
 struct DkcSceneStatic;
 struct DkcScene {
     cat: gst::DebugCategory,
@@ -184,9 +186,9 @@ impl DkcScene {
         Box::new({
             Self {
                 cat: gst::DebugCategory::new(
-                    "dkcsource",
+                    "dkcscene",
                     gst::DebugColorFlags::empty(),
-                    "DankCaster dummy source element",
+                    "DankCaster dummy scene element",
                 ),
                 video_mixer: gst::ElementFactory::make("videomixer", None)
                     .expect("Could not create video source element."),
@@ -253,8 +255,117 @@ impl DkcScene {
     }
 }
 
-
 pub fn register(plugin: &gst::Plugin) {
     let type_ = register_type(DkcSceneStatic);
     gst::Element::register(plugin, "dkcscene", 0, type_);
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    fn set_up() {
+        plugin_once::load();
+    }
+
+    #[test]
+    fn test_new() {
+        set_up();
+
+        assert!(
+            match gst::ElementFactory::make("dkcscene", "scene") {
+                Some(el) => true,
+                None => false
+            }
+        );
+    }
+
+    #[test]
+    fn test_video_sink_pad_request() {
+        set_up();
+
+        match gst::ElementFactory::make("dkcscene", "scene") {
+            Some(scene) => {
+                let video_sink_0 = scene.get_request_pad("video_sink_%u");
+                let video_sink_1 = scene.get_request_pad("video_sink_%u");
+
+                assert!(match video_sink_0 {
+                    Some(pad) => pad.get_name() == "video_sink_0",
+                    None => false
+                });
+                assert!(match video_sink_1 {
+                    Some(pad) => pad.get_name() == "video_sink_1",
+                    None => false
+                });
+            },
+            None => (),
+        };
+    }
+
+    #[test]
+    fn test_audio_sink_pad_request() {
+        set_up();
+
+        match gst::ElementFactory::make("dkcscene", "scene") {
+            Some(scene) => {
+                let audio_sink_0 = scene.get_request_pad("audio_sink_%u");
+                let audio_sink_1 = scene.get_request_pad("audio_sink_%u");
+
+                assert!(match audio_sink_0 {
+                    Some(pad) => pad.get_name() == "audio_sink_0",
+                    None => false
+                });
+                assert!(match audio_sink_1 {
+                    Some(pad) => pad.get_name() == "audio_sink_1",
+                    None => false
+                });
+            },
+            None => (),
+        };
+    }
+
+    #[test]
+    fn test_video_src_pad_request() {
+        set_up();
+
+        match gst::ElementFactory::make("dkcscene", "scene") {
+            Some(scene) => {
+                let video_src_0 = scene.get_request_pad("video_src_%u");
+                let video_src_1 = scene.get_request_pad("video_src_%u");
+
+                assert!(match video_src_0 {
+                    Some(pad) => pad.get_name() == "video_src_0",
+                    None => false
+                });
+                assert!(match video_src_1 {
+                    Some(pad) => pad.get_name() == "video_src_1",
+                    None => false
+                });
+            },
+            None => (),
+        };
+    }
+
+    #[test]
+    fn test_audio_src_pad_request() {
+        set_up();
+
+        match gst::ElementFactory::make("dkcscene", "scene") {
+            Some(scene) => {
+                let audio_src_0 = scene.get_request_pad("audio_src_%u");
+                let audio_src_1 = scene.get_request_pad("audio_src_%u");
+
+                assert!(match audio_src_0 {
+                    Some(pad) => pad.get_name() == "audio_src_0",
+                    None => false
+                });
+                assert!(match audio_src_1 {
+                    Some(pad) => pad.get_name() == "audio_src_1",
+                    None => false
+                });
+            },
+            None => (),
+        };
+    }
 }

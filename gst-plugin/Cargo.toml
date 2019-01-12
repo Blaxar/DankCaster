@@ -14,6 +14,9 @@ gstreamer-audio = "0.12"
 byte-slice-cast = "0.2"
 num-traits = "0.2"
 
+[dev-dependencies]
+dankcaster-gst-plugin = {path = "."} # For testing purposes
+
 [lib]
 name = "gstdkcplugin"
 crate-type = ["cdylib"]

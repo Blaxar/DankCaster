@@ -21,6 +21,7 @@ plugin_define!(
 mod source;
 mod scene;
 mod sink;
+mod plugin_once;
 
 fn plugin_init(plugin: &gst::Plugin) -> bool {
     source::register(plugin);
@@ -31,4 +32,15 @@ fn plugin_init(plugin: &gst::Plugin) -> bool {
 
 pub fn hello_world() {
   println!("HELLO THERE");
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_plugin_loaded() {
+        assert!(plugin_once::load());
+    }
 }
