@@ -1,36 +1,20 @@
 use glib;
+use glib::subclass;
+use glib::subclass::prelude::*;
 use gst;
 use gst::prelude::*;
-use gst_base::prelude::*;
-use gst_plugin::bin::*;
+use gst::subclass::prelude::*;
 
-use gst_plugin::object::*;
-use gst_plugin::base_src::*;
-use gst_plugin::element::*;
-use gobject_subclass::object::*;
-
-struct DkcDummySourceStatic;
 struct DkcDummySource {
     cat: gst::DebugCategory,
 }
 
-impl ImplTypeStatic<Bin> for DkcDummySourceStatic {
-    fn get_name(&self) -> &str {
-        "DkcDummySource"
-    }
+impl ObjectImpl for DkcDummySource {
 
-    fn new(&self, element: &Bin) -> Box<BinImpl<Bin>> {
-        DkcDummySource::new(element)
-    }
+    glib_object_impl!();
 
-    fn class_init(&self, klass: &mut BinClass) {
-        DkcDummySource::class_init(klass);
-    }
-}
-
-impl ObjectImpl<Bin> for DkcDummySource {
-    fn constructed(&self, bin: &Bin) {
-        bin.parent_constructed();
+    fn constructed(&self, obj: &glib::Object) {
+        let bin = obj.downcast_ref::<gst::Bin>().unwrap();
 
         let video_elem = gst::ElementFactory::make("videotestsrc", "testvideosource")
             .expect("Could not create video source element.");
@@ -54,23 +38,29 @@ impl ObjectImpl<Bin> for DkcDummySource {
     }
 }
 
-impl ElementImpl<Bin> for DkcDummySource {}
-impl BinImpl<Bin> for DkcDummySource {}
+impl ElementImpl for DkcDummySource {}
+impl BinImpl for DkcDummySource {}
 
-impl DkcDummySource {
-    fn new(bin: &Bin) -> Box<BinImpl<Bin>> {
-        Box::new({
-            Self {
-                cat: gst::DebugCategory::new(
-                    "dkcsource",
-                    gst::DebugColorFlags::empty(),
-                    "DankCaster dummy source element",
-                ),
-            }
-        })
+impl ObjectSubclass for DkcDummySource {
+
+    const NAME: &'static str = "DkcDummySource";
+    type ParentType = gst::Bin;
+    type Instance = gst::subclass::ElementInstanceStruct<Self>;
+    type Class = subclass::simple::ClassStruct<Self>;
+
+    glib_object_subclass!();
+
+    fn new() -> Self {
+        Self {
+            cat: gst::DebugCategory::new(
+                "dkcsource",
+                gst::DebugColorFlags::empty(),
+                "DankCaster dummy source element",
+            )
+        }
     }
 
-    fn class_init(klass: &mut BinClass) {
+    fn class_init(klass: &mut subclass::simple::ClassStruct<Self>) {
         klass.set_metadata(
             "DankCaster dummy source element",
             "Audio/Video",
@@ -107,8 +97,6 @@ impl DkcDummySource {
     }
 }
 
-
-pub fn register(plugin: &gst::Plugin) {
-    let type_ = register_type(DkcDummySourceStatic);
-    gst::Element::register(plugin, "dkcdummysource", 0, type_);
+pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
+    gst::Element::register(plugin, "dkcdummysource", 0, DkcDummySource::get_type())
 }

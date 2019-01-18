@@ -1,36 +1,20 @@
 use glib;
+use glib::subclass;
+use glib::subclass::prelude::*;
 use gst;
 use gst::prelude::*;
-use gst_base::prelude::*;
-use gst_plugin::bin::*;
+use gst::subclass::prelude::*;
 
-use gst_plugin::object::*;
-use gst_plugin::base_src::*;
-use gst_plugin::element::*;
-use gobject_subclass::object::*;
-
-struct DkcDummySinkStatic;
 struct DkcDummySink {
     cat: gst::DebugCategory,
 }
 
-impl ImplTypeStatic<Bin> for DkcDummySinkStatic {
-    fn get_name(&self) -> &str {
-        "DkcDummySink"
-    }
+impl ObjectImpl for DkcDummySink {
 
-    fn new(&self, element: &Bin) -> Box<BinImpl<Bin>> {
-        DkcDummySink::new(element)
-    }
+    glib_object_impl!();
 
-    fn class_init(&self, klass: &mut BinClass) {
-        DkcDummySink::class_init(klass);
-    }
-}
-
-impl ObjectImpl<Bin> for DkcDummySink {
-    fn constructed(&self, bin: &Bin) {
-        bin.parent_constructed();
+    fn constructed(&self, obj: &glib::Object) {
+        let bin = obj.downcast_ref::<gst::Bin>().unwrap();
 
         let video_elem = gst::ElementFactory::make("autovideosink", "testvideosink")
             .expect("Could not create video sink element.");
@@ -54,23 +38,29 @@ impl ObjectImpl<Bin> for DkcDummySink {
     }
 }
 
-impl ElementImpl<Bin> for DkcDummySink {}
-impl BinImpl<Bin> for DkcDummySink {}
+impl ElementImpl for DkcDummySink {}
+impl BinImpl for DkcDummySink {}
 
-impl DkcDummySink {
-    fn new(bin: &Bin) -> Box<BinImpl<Bin>> {
-        Box::new({
-            Self {
-                cat: gst::DebugCategory::new(
-                    "dkcsink",
-                    gst::DebugColorFlags::empty(),
-                    "DankCaster dummy sink element",
-                ),
-            }
-        })
+impl ObjectSubclass for DkcDummySink {
+
+    const NAME: &'static str = "DkcDummySink";
+    type ParentType = gst::Bin;
+    type Instance = gst::subclass::ElementInstanceStruct<Self>;
+    type Class = subclass::simple::ClassStruct<Self>;
+
+    glib_object_subclass!();
+
+    fn new() -> Self {
+        Self {
+            cat: gst::DebugCategory::new(
+                "dkcsink",
+                gst::DebugColorFlags::empty(),
+                "DankCaster dummy sink element",
+            ),
+        }
     }
 
-    fn class_init(klass: &mut BinClass) {
+    fn class_init(klass: &mut subclass::simple::ClassStruct<Self>) {
         klass.set_metadata(
             "DankCaster dummy sink element",
             "Audio/Video",
@@ -108,7 +98,6 @@ impl DkcDummySink {
 }
 
 
-pub fn register(plugin: &gst::Plugin) {
-    let type_ = register_type(DkcDummySinkStatic);
-    gst::Element::register(plugin, "dkcdummysink", 0, type_);
+pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
+    gst::Element::register(plugin, "dkcdummysink", 0, DkcDummySink::get_type())
 }

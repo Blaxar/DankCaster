@@ -1,9 +1,7 @@
-extern crate dankcaster as dkc;
 extern crate gstreamer as gst;
 use gst::prelude::*;
 
 fn main() {
-    dkc::hello_world();
     gst::init().unwrap();
 
     let elem = gst::ElementFactory::make("videotestsrc", "source")
@@ -23,8 +21,7 @@ fn main() {
     sink.set_property_from_str("sync", "false");
 
     let ret = pipeline.set_state(gst::State::Playing);
-    assert_ne!(ret, gst::StateChangeReturn::Failure,
-               "Unable to set the pipeline to the playing state");
+    assert!(ret.is_ok(), "Unable to set the pipeline to the playing state");
 
     let bus = pipeline.get_bus().unwrap();
     while let Some(msg) = bus.timed_pop(gst::CLOCK_TIME_NONE) {
@@ -45,9 +42,5 @@ fn main() {
     }
 
     let ret = pipeline.set_state(gst::State::Null);
-    assert_ne!(
-        ret,
-        gst::StateChangeReturn::Failure,
-        "Unable to set the pipeline to the Null state."
-    );
+    assert!(ret.is_ok(), "Unable to set the pipeline to the Null state.");
 }

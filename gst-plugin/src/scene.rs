@@ -1,17 +1,10 @@
 use glib;
+use glib::subclass;
+use glib::subclass::prelude::*;
 use gst;
 use gst::prelude::*;
-use gst_base::prelude::*;
-use gst_plugin::bin::*;
+use gst::subclass::prelude::*;
 
-use gst_plugin::object::*;
-use gst_plugin::base_src::*;
-use gst_plugin::element::*;
-use gobject_subclass::object::*;
-
-use plugin_once;
-
-struct DkcSceneStatic;
 struct DkcScene {
     cat: gst::DebugCategory,
     video_mixer: gst::Element,
@@ -20,23 +13,12 @@ struct DkcScene {
     audio_tee: gst::Element,
 }
 
-impl ImplTypeStatic<Bin> for DkcSceneStatic {
-    fn get_name(&self) -> &str {
-        "DkcScene"
-    }
+impl ObjectImpl for DkcScene {
 
-    fn new(&self, element: &Bin) -> Box<BinImpl<Bin>> {
-        DkcScene::new(element)
-    }
+    glib_object_impl!();
 
-    fn class_init(&self, klass: &mut BinClass) {
-        DkcScene::class_init(klass);
-    }
-}
-
-impl ObjectImpl<Bin> for DkcScene {
-    fn constructed(&self, bin: &Bin) {
-        bin.parent_constructed();
+    fn constructed(&self, obj: &glib::Object) {
+        let bin = obj.downcast_ref::<gst::Bin>().unwrap();
 
         self.add_element(bin, &self.video_mixer);
         self.add_element(bin, &self.audio_mixer);
@@ -51,7 +33,7 @@ impl ObjectImpl<Bin> for DkcScene {
 }
 
 fn handle_sink_request(
-    element: &Bin,
+    element: &gst::Bin,
     templ: &gst::PadTemplate,
     tmpl_caps: &gst::Caps,
     video_mixer: &gst::Element,
@@ -83,7 +65,7 @@ fn handle_sink_request(
 }
 
 fn handle_src_request(
-    element: &Bin,
+    element: &gst::Bin,
     templ: &gst::PadTemplate,
     tmpl_caps: &gst::Caps,
     video_tee: &gst::Element,
@@ -124,14 +106,16 @@ fn handle_src_request(
 
 }
 
-impl ElementImpl<Bin> for DkcScene {
+impl ElementImpl for DkcScene {
     fn request_new_pad(
         &self,
-        element: &Bin,
+        element: &gst::Element,
         templ: &gst::PadTemplate,
         name: Option<String>,
         caps: Option<&gst::CapsRef>,
     ) -> Option<gst::Pad> {
+
+        let bin = element.downcast_ref::<gst::Bin>().unwrap();
 
         let video_caps = gst::Caps::new_simple(
             "video/x-raw",
@@ -150,13 +134,13 @@ impl ElementImpl<Bin> for DkcScene {
                 match caps {
                     Some(caps_ref) =>
                         if tmpl_caps.is_always_compatible(caps_ref) {
-                            handle_sink_request(element, templ, &tmpl_caps,
+                            handle_sink_request(bin, templ, &tmpl_caps,
                                                 &self.video_mixer, &self.audio_mixer,
                                                 &video_caps, &audio_caps)
                         } else {
                             None
                         },
-                    None => handle_sink_request(element, templ, &tmpl_caps,
+                    None => handle_sink_request(bin, templ, &tmpl_caps,
                                                 &self.video_mixer, &self.audio_mixer,
                                                 &video_caps, &audio_caps)
                 },
@@ -164,13 +148,13 @@ impl ElementImpl<Bin> for DkcScene {
                 match caps {
                     Some(caps_ref) =>
                         if tmpl_caps.is_always_compatible(caps_ref) {
-                            handle_src_request(element, templ, &tmpl_caps,
+                            handle_src_request(bin, templ, &tmpl_caps,
                                                &self.video_tee, &self.audio_tee,
                                                &video_caps, &audio_caps)
                         } else {
                             None
                         },
-                    None => handle_src_request(element, templ, &tmpl_caps,
+                    None => handle_src_request(bin, templ, &tmpl_caps,
                                                &self.video_tee, &self.audio_tee,
                                                &video_caps, &audio_caps)
                 },
@@ -179,30 +163,37 @@ impl ElementImpl<Bin> for DkcScene {
     }
 
 }
-impl BinImpl<Bin> for DkcScene {}
 
-impl DkcScene {
-    fn new(bin: &Bin) -> Box<BinImpl<Bin>> {
-        Box::new({
-            Self {
-                cat: gst::DebugCategory::new(
-                    "dkcscene",
-                    gst::DebugColorFlags::empty(),
-                    "DankCaster dummy scene element",
-                ),
-                video_mixer: gst::ElementFactory::make("videomixer", None)
-                    .expect("Could not create video source element."),
-                audio_mixer: gst::ElementFactory::make("audiomixer", None)
-                    .expect("Could not create audio source element."),
-                video_tee: gst::ElementFactory::make("tee", None)
-                    .expect("Could not create video tee element."),
-                audio_tee: gst::ElementFactory::make("tee", None)
-                    .expect("Could not create audio tee element."),
-            }
-        })
+impl BinImpl for DkcScene {}
+
+impl ObjectSubclass for DkcScene {
+
+    const NAME: &'static str = "DkcDummyScene";
+    type ParentType = gst::Bin;
+    type Instance = gst::subclass::ElementInstanceStruct<Self>;
+    type Class = subclass::simple::ClassStruct<Self>;
+
+    glib_object_subclass!();
+
+    fn new() -> Self {
+        Self {
+            cat: gst::DebugCategory::new(
+                "dkcscene",
+                gst::DebugColorFlags::empty(),
+                "DankCaster dummy scene element",
+            ),
+            video_mixer: gst::ElementFactory::make("videomixer", None)
+                .expect("Could not create video source element."),
+            audio_mixer: gst::ElementFactory::make("audiomixer", None)
+                .expect("Could not create audio source element."),
+            video_tee: gst::ElementFactory::make("tee", None)
+                .expect("Could not create video tee element."),
+            audio_tee: gst::ElementFactory::make("tee", None)
+                .expect("Could not create audio tee element."),
+        }
     }
 
-    fn class_init(klass: &mut BinClass) {
+    fn class_init(klass: &mut subclass::simple::ClassStruct<Self>) {
         klass.set_metadata(
             "DankCaster scene element",
             "Audio/Video",
@@ -255,18 +246,24 @@ impl DkcScene {
     }
 }
 
-pub fn register(plugin: &gst::Plugin) {
-    let type_ = register_type(DkcSceneStatic);
-    gst::Element::register(plugin, "dkcscene", 0, type_);
+pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
+    gst::Element::register(plugin, "dkcscene", 0, DkcScene::get_type())
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use plugin_desc::plugin_register_static;
 
     fn set_up() {
-        plugin_once::load();
+        use std::sync::{Once, ONCE_INIT};
+        static INIT: Once = ONCE_INIT;
+
+        INIT.call_once(|| {
+            gst::init().unwrap();
+            plugin_register_static();
+        });
     }
 
     #[test]
