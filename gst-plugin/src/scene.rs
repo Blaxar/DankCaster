@@ -43,24 +43,32 @@ fn handle_sink_request(
 ) -> Option<gst::Pad> {
 
     if tmpl_caps.is_strictly_equal(video_caps) {
+
         let mixer_pad = video_mixer.get_request_pad("sink_%u").unwrap();
         let ghost_pad_name = format!("video_{}", mixer_pad.get_name());
+
+        /* Add ghost video sink pad to the element (targeting mixer sink) */
         let ghost_pad = gst::GhostPad::new_from_template(Some(&*ghost_pad_name),
                                                          &mixer_pad,
                                                          templ).unwrap();
         element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
+
         Some(ghost_pad.upcast::<gst::Pad>())
+
     } else if tmpl_caps.is_strictly_equal(audio_caps) {
+
         let mixer_pad = audio_mixer.get_request_pad("sink_%u").unwrap();
         let ghost_pad_name = format!("audio_{}", mixer_pad.get_name());
+
+        /* Add ghost video sink pad to the element (targeting mixer sink) */
         let ghost_pad = gst::GhostPad::new_from_template(Some(&*ghost_pad_name),
                                                          &mixer_pad,
                                                          templ).unwrap();
         element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
+
         Some(ghost_pad.upcast::<gst::Pad>())
-    } else {
-        None
-    }
+
+    } else { None }
 
 }
 
@@ -75,34 +83,45 @@ fn handle_src_request(
 ) -> Option<gst::Pad> {
 
     if tmpl_caps.is_strictly_equal(video_caps) {
+
         let tee_pad = video_tee.get_request_pad("src_%u").unwrap();
         let ghost_pad_name = format!("video_{}", tee_pad.get_name());
+
+        /* Create, add and link tee queue */
         let queue = gst::ElementFactory::make("queue", None)
             .expect("Could not create queue element for video mixer tee.");
         element.add(&queue).expect("Could not add queue element for video mixer to the bin");
         video_tee.link(&queue).expect("Could not link queue element to video tee");
+
+        /* Add ghost video src pad to the element (targeting queue src) */
         let queue_pad = queue.get_static_pad("src").unwrap();
         let ghost_pad = gst::GhostPad::new_from_template(Some(&*ghost_pad_name),
                                                          &queue_pad,
                                                          templ).unwrap();
         element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
+
         Some(ghost_pad.upcast::<gst::Pad>())
+
     } else if tmpl_caps.is_strictly_equal(audio_caps) {
+
         let tee_pad = audio_tee.get_request_pad("src_%u").unwrap();
         let ghost_pad_name = format!("audio_{}", tee_pad.get_name());
+
+        /* Create, add and link tee queue */
         let queue = gst::ElementFactory::make("queue", None)
             .expect("Could not create queue element for audio mixer tee.");
         element.add(&queue).expect("Could not add queue element for audio mixer to the bin");
         audio_tee.link(&queue).expect("Could not link queue element to audio tee");
+
+        /* Add ghost audio src pad to the element (targeting queue src) */
         let queue_pad = queue.get_static_pad("src").unwrap();
         let ghost_pad = gst::GhostPad::new_from_template(Some(&*ghost_pad_name),
                                                          &queue_pad,
                                                          templ).unwrap();
         element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
         Some(ghost_pad.upcast::<gst::Pad>())
-    } else {
-        None
-    }
+
+    } else { None }
 
 }
 
@@ -162,6 +181,38 @@ impl ElementImpl for DkcScene {
         }
     }
 
+    fn release_pad(&self, element: &gst::Element, pad: &gst::Pad) {
+        match pad.get_direction() {
+            gst::PadDirection::Sink => {
+                let mixer_sink_pad = pad.downcast_ref::<gst::GhostPad>().unwrap().get_target().expect("Could not get mixer sink pad for releasing");
+                let mixer = mixer_sink_pad.get_parent_element().expect("Could not get mixer element from its sink pad");
+
+                /* release mixer sink pad */
+                mixer.release_request_pad(&mixer_sink_pad);
+
+                /* remove ghost pad */
+                element.remove_pad(pad).expect("Could not remove ghost sink pad");
+            },
+            gst::PadDirection::Src => {
+                let bin = element.downcast_ref::<gst::Bin>().unwrap();
+                let queue_src_pad = pad.downcast_ref::<gst::GhostPad>().unwrap().get_target().expect("Could not get queue src pad");
+                let queue = queue_src_pad.get_parent_element().expect("Could not get queue element from its src pad");
+                let queue_sink_pad = queue.get_static_pad("sink").expect("Could not get queue sink pad");
+                let tee_src_pad = queue_sink_pad.get_peer().expect("Could not get tee src pad its peer");
+                let tee = tee_src_pad.get_parent_element().expect("Could not get tee element from its src pad");
+
+                //release tee src pad
+                tee.release_request_pad(&tee_src_pad);
+
+                //remove ghost pad
+                element.remove_pad(pad).expect("Could not remove ghost sink pad");
+
+                //remove queue
+                bin.remove(&queue);
+            },
+            _ => (),
+        };
+    }
 }
 
 impl BinImpl for DkcScene {}
@@ -282,87 +333,136 @@ mod tests {
     fn test_video_sink_pad_request() {
         set_up();
 
-        match gst::ElementFactory::make("dkcscene", "scene") {
-            Some(scene) => {
-                let video_sink_0 = scene.get_request_pad("video_sink_%u");
-                let video_sink_1 = scene.get_request_pad("video_sink_%u");
+        let scene = gst::ElementFactory::make("dkcscene", "scene")
+            .expect("Could not make dkcscene element");
+        let video_sink_0 = scene.get_request_pad("video_sink_%u");
+        let video_sink_1 = scene.get_request_pad("video_sink_%u");
 
-                assert!(match video_sink_0 {
-                    Some(pad) => pad.get_name() == "video_sink_0",
-                    None => false
-                });
-                assert!(match video_sink_1 {
-                    Some(pad) => pad.get_name() == "video_sink_1",
-                    None => false
-                });
-            },
-            None => (),
-        };
+        assert!(match video_sink_0 {
+            Some(pad) => pad.get_name() == "video_sink_0",
+            None => false
+        });
+        assert!(match video_sink_1 {
+            Some(pad) => pad.get_name() == "video_sink_1",
+            None => false
+        });
+    }
+
+    #[test]
+    fn test_video_sink_pad_release() {
+        set_up();
+
+        let scene = gst::ElementFactory::make("dkcscene", "scene")
+            .expect("Could not make dkcscene element");
+        let video_sink_0 = scene.get_request_pad("video_sink_%u")
+            .expect("Could not get requet pad 0");
+        let video_sink_1 = scene.get_request_pad("video_sink_%u")
+            .expect("Could not get requet pad 1");
+
+        scene.release_request_pad(&video_sink_0);
+        scene.release_request_pad(&video_sink_1);
     }
 
     #[test]
     fn test_audio_sink_pad_request() {
         set_up();
 
-        match gst::ElementFactory::make("dkcscene", "scene") {
-            Some(scene) => {
-                let audio_sink_0 = scene.get_request_pad("audio_sink_%u");
-                let audio_sink_1 = scene.get_request_pad("audio_sink_%u");
+        let scene = gst::ElementFactory::make("dkcscene", "scene")
+            .expect("Could not make dkcscene element");
+        let audio_sink_0 = scene.get_request_pad("audio_sink_%u");
+        let audio_sink_1 = scene.get_request_pad("audio_sink_%u");
 
-                assert!(match audio_sink_0 {
-                    Some(pad) => pad.get_name() == "audio_sink_0",
-                    None => false
-                });
-                assert!(match audio_sink_1 {
-                    Some(pad) => pad.get_name() == "audio_sink_1",
-                    None => false
-                });
-            },
-            None => (),
-        };
+        assert!(match audio_sink_0 {
+            Some(pad) => pad.get_name() == "audio_sink_0",
+            None => false
+        });
+        assert!(match audio_sink_1 {
+            Some(pad) => pad.get_name() == "audio_sink_1",
+            None => false
+        });
+    }
+
+    #[test]
+    fn test_audio_sink_pad_release() {
+        set_up();
+
+        let scene = gst::ElementFactory::make("dkcscene", "scene")
+            .expect("Could not make dkcscene element");
+        let audio_sink_0 = scene.get_request_pad("audio_sink_%u")
+            .expect("Could not get requet pad 0");
+        let audio_sink_1 = scene.get_request_pad("audio_sink_%u")
+            .expect("Could not get requet pad 1");
+
+        scene.release_request_pad(&audio_sink_0);
+        scene.release_request_pad(&audio_sink_1);
     }
 
     #[test]
     fn test_video_src_pad_request() {
         set_up();
 
-        match gst::ElementFactory::make("dkcscene", "scene") {
-            Some(scene) => {
-                let video_src_0 = scene.get_request_pad("video_src_%u");
-                let video_src_1 = scene.get_request_pad("video_src_%u");
+        let scene = gst::ElementFactory::make("dkcscene", "scene")
+            .expect("Could not make dkcscene element");
+        let video_src_0 = scene.get_request_pad("video_src_%u");
+        let video_src_1 = scene.get_request_pad("video_src_%u");
 
-                assert!(match video_src_0 {
-                    Some(pad) => pad.get_name() == "video_src_0",
-                    None => false
-                });
-                assert!(match video_src_1 {
-                    Some(pad) => pad.get_name() == "video_src_1",
-                    None => false
-                });
-            },
-            None => (),
-        };
+        assert!(match video_src_0 {
+            Some(pad) => pad.get_name() == "video_src_0",
+            None => false
+        });
+        assert!(match video_src_1 {
+            Some(pad) => pad.get_name() == "video_src_1",
+            None => false
+        });
+    }
+
+    #[test]
+    fn test_video_src_pad_release() {
+        set_up();
+
+        let scene = gst::ElementFactory::make("dkcscene", "scene")
+            .expect("Could not make dkcscene element");
+        let video_src_0 = scene.get_request_pad("video_src_%u")
+            .expect("Could not get requet pad 0");
+        let video_src_1 = scene.get_request_pad("video_src_%u")
+            .expect("Could not get requet pad 1");
+
+        scene.release_request_pad(&video_src_0);
+        scene.release_request_pad(&video_src_1);
     }
 
     #[test]
     fn test_audio_src_pad_request() {
         set_up();
 
-        match gst::ElementFactory::make("dkcscene", "scene") {
-            Some(scene) => {
-                let audio_src_0 = scene.get_request_pad("audio_src_%u");
-                let audio_src_1 = scene.get_request_pad("audio_src_%u");
+        let scene = gst::ElementFactory::make("dkcscene", "scene")
+            .expect("Could not make dkcscene element");
+        let audio_src_0 = scene.get_request_pad("audio_src_%u");
+        let audio_src_1 = scene.get_request_pad("audio_src_%u");
 
-                assert!(match audio_src_0 {
-                    Some(pad) => pad.get_name() == "audio_src_0",
-                    None => false
-                });
-                assert!(match audio_src_1 {
-                    Some(pad) => pad.get_name() == "audio_src_1",
-                    None => false
-                });
-            },
-            None => (),
-        };
+        assert!(match audio_src_0 {
+            Some(pad) => pad.get_name() == "audio_src_0",
+            None => false
+        });
+        assert!(match audio_src_1 {
+            Some(pad) => pad.get_name() == "audio_src_1",
+            None => false
+        });
     }
+
+    #[test]
+    fn test_audio_src_pad_release() {
+        set_up();
+
+        let scene = gst::ElementFactory::make("dkcscene", "scene")
+            .expect("Could not make dkcscene element");
+        let audio_src_0 = scene.get_request_pad("audio_src_%u")
+            .expect("Could not get requet pad 0");
+        let audio_src_1 = scene.get_request_pad("audio_src_%u")
+            .expect("Could not get requet pad 1");
+
+        scene.release_request_pad(&audio_src_0);
+        scene.release_request_pad(&audio_src_1);
+    }
+
 }
