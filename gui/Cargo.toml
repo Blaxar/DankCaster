@@ -4,6 +4,6 @@ version = "0.1.0"
 authors = ["Blaxar Waldarax <blaxar.waldarax@gmail.com>"]
 
 [dependencies]
-glib = { git = "https://github.com/gtk-rs/glib", features = ["subclassing"] }
-gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", features = ["subclassing"] }
+glib = { git = "https://github.com/gtk-rs/glib" }
+gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
 dankcaster = {path = "../dankcaster"}

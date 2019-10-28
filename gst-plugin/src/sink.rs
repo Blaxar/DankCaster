@@ -16,10 +16,10 @@ impl ObjectImpl for DkcDummySink {
     fn constructed(&self, obj: &glib::Object) {
         let bin = obj.downcast_ref::<gst::Bin>().unwrap();
 
-        let video_elem = gst::ElementFactory::make("autovideosink", "testvideosink")
+        let video_elem = gst::ElementFactory::make("autovideosink", Some("testvideosink"))
             .expect("Could not create video sink element.");
 
-        let audio_elem = gst::ElementFactory::make("autoaudiosink", "testaudiosink")
+        let audio_elem = gst::ElementFactory::make("autoaudiosink", Some("testaudiosink"))
             .expect("Could not create audio sink element.");
 
         self.add_element(bin, &video_elem);
@@ -29,9 +29,9 @@ impl ObjectImpl for DkcDummySink {
 
         let audio_pad = audio_elem.get_static_pad("sink").unwrap();
 
-        let video_ghost_pad = gst::GhostPad::new("video_sink", &video_pad).unwrap();
+        let video_ghost_pad = gst::GhostPad::new(Some("video_sink"), &video_pad).unwrap();
 
-        let audio_ghost_pad = gst::GhostPad::new("audio_sink", &audio_pad).unwrap();
+        let audio_ghost_pad = gst::GhostPad::new(Some("audio_sink"), &audio_pad).unwrap();
 
         bin.add_pad(&video_ghost_pad).unwrap();
         bin.add_pad(&audio_ghost_pad).unwrap();
@@ -55,7 +55,7 @@ impl ObjectSubclass for DkcDummySink {
             cat: gst::DebugCategory::new(
                 "dkcsink",
                 gst::DebugColorFlags::empty(),
-                "DankCaster dummy sink element",
+                Some("DankCaster dummy sink element"),
             ),
         }
     }
@@ -92,12 +92,12 @@ impl ObjectSubclass for DkcDummySink {
             &audio_caps,
         );
 
-        klass.add_pad_template(video_sink_pad_template);
-        klass.add_pad_template(audio_sink_pad_template);
+        klass.add_pad_template(video_sink_pad_template.unwrap());
+        klass.add_pad_template(audio_sink_pad_template.unwrap());
     }
 }
 
 
 pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
-    gst::Element::register(plugin, "dkcdummysink", 0, DkcDummySink::get_type())
+    gst::Element::register(Some(plugin), "dkcdummysink", gst::Rank::None, DkcDummySink::get_type())
 }

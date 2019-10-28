@@ -16,10 +16,10 @@ impl ObjectImpl for DkcDummySource {
     fn constructed(&self, obj: &glib::Object) {
         let bin = obj.downcast_ref::<gst::Bin>().unwrap();
 
-        let video_elem = gst::ElementFactory::make("videotestsrc", "testvideosource")
+        let video_elem = gst::ElementFactory::make("videotestsrc", Some("testvideosource"))
             .expect("Could not create video source element.");
 
-        let audio_elem = gst::ElementFactory::make("audiotestsrc", "testaudiosource")
+        let audio_elem = gst::ElementFactory::make("audiotestsrc", Some("testaudiosource"))
             .expect("Could not create audio source element.");
 
         self.add_element(bin, &video_elem);
@@ -29,9 +29,9 @@ impl ObjectImpl for DkcDummySource {
 
         let audio_pad = audio_elem.get_static_pad("src").unwrap();
 
-        let video_ghost_pad = gst::GhostPad::new("video_src", &video_pad).unwrap();
+        let video_ghost_pad = gst::GhostPad::new(Some("video_src"), &video_pad).unwrap();
 
-        let audio_ghost_pad = gst::GhostPad::new("audio_src", &audio_pad).unwrap();
+        let audio_ghost_pad = gst::GhostPad::new(Some("audio_src"), &audio_pad).unwrap();
 
         bin.add_pad(&video_ghost_pad).unwrap();
         bin.add_pad(&audio_ghost_pad).unwrap();
@@ -55,7 +55,7 @@ impl ObjectSubclass for DkcDummySource {
             cat: gst::DebugCategory::new(
                 "dkcsource",
                 gst::DebugColorFlags::empty(),
-                "DankCaster dummy source element",
+                Some("DankCaster dummy source element"),
             )
         }
     }
@@ -92,11 +92,11 @@ impl ObjectSubclass for DkcDummySource {
             &audio_caps,
         );
 
-        klass.add_pad_template(video_src_pad_template);
-        klass.add_pad_template(audio_src_pad_template);
+        klass.add_pad_template(video_src_pad_template.unwrap());
+        klass.add_pad_template(audio_src_pad_template.unwrap());
     }
 }
 
 pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
-    gst::Element::register(plugin, "dkcdummysource", 0, DkcDummySource::get_type())
+    gst::Element::register(Some(plugin), "dkcdummysource", gst::Rank::None, DkcDummySource::get_type())
 }

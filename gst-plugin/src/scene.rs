@@ -131,7 +131,7 @@ impl ElementImpl for DkcScene {
         element: &gst::Element,
         templ: &gst::PadTemplate,
         name: Option<String>,
-        caps: Option<&gst::CapsRef>,
+        caps: Option<&gst::Caps>,
     ) -> Option<gst::Pad> {
 
         let bin = element.downcast_ref::<gst::Bin>().unwrap();
@@ -231,7 +231,7 @@ impl ObjectSubclass for DkcScene {
             cat: gst::DebugCategory::new(
                 "dkcscene",
                 gst::DebugColorFlags::empty(),
-                "DankCaster dummy scene element",
+                Some("DankCaster dummy scene element"),
             ),
             video_mixer: gst::ElementFactory::make("videomixer", None)
                 .expect("Could not create video source element."),
@@ -290,15 +290,15 @@ impl ObjectSubclass for DkcScene {
             &audio_caps,
         );
 
-        klass.add_pad_template(video_sink_pad_template);
-        klass.add_pad_template(audio_sink_pad_template);
-        klass.add_pad_template(video_src_pad_template);
-        klass.add_pad_template(audio_src_pad_template);
+        klass.add_pad_template(video_sink_pad_template.unwrap());
+        klass.add_pad_template(audio_sink_pad_template.unwrap());
+        klass.add_pad_template(video_src_pad_template.unwrap());
+        klass.add_pad_template(audio_src_pad_template.unwrap());
     }
 }
 
 pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
-    gst::Element::register(plugin, "dkcscene", 0, DkcScene::get_type())
+    gst::Element::register(Some(plugin), "dkcscene", gst::Rank::None, DkcScene::get_type())
 }
 
 #[cfg(test)]
@@ -322,7 +322,7 @@ mod tests {
         set_up();
 
         assert!(
-            match gst::ElementFactory::make("dkcscene", "scene") {
+            match gst::ElementFactory::make("dkcscene", Some("scene")) {
                 Some(el) => true,
                 None => false
             }
@@ -333,7 +333,7 @@ mod tests {
     fn test_video_sink_pad_request() {
         set_up();
 
-        let scene = gst::ElementFactory::make("dkcscene", "scene")
+        let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
         let video_sink_0 = scene.get_request_pad("video_sink_%u");
         let video_sink_1 = scene.get_request_pad("video_sink_%u");
@@ -352,7 +352,7 @@ mod tests {
     fn test_video_sink_pad_release() {
         set_up();
 
-        let scene = gst::ElementFactory::make("dkcscene", "scene")
+        let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
         let video_sink_0 = scene.get_request_pad("video_sink_%u")
             .expect("Could not get requet pad 0");
@@ -367,7 +367,7 @@ mod tests {
     fn test_audio_sink_pad_request() {
         set_up();
 
-        let scene = gst::ElementFactory::make("dkcscene", "scene")
+        let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
         let audio_sink_0 = scene.get_request_pad("audio_sink_%u");
         let audio_sink_1 = scene.get_request_pad("audio_sink_%u");
@@ -386,7 +386,7 @@ mod tests {
     fn test_audio_sink_pad_release() {
         set_up();
 
-        let scene = gst::ElementFactory::make("dkcscene", "scene")
+        let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
         let audio_sink_0 = scene.get_request_pad("audio_sink_%u")
             .expect("Could not get requet pad 0");
@@ -401,7 +401,7 @@ mod tests {
     fn test_video_src_pad_request() {
         set_up();
 
-        let scene = gst::ElementFactory::make("dkcscene", "scene")
+        let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
         let video_src_0 = scene.get_request_pad("video_src_%u");
         let video_src_1 = scene.get_request_pad("video_src_%u");
@@ -420,7 +420,7 @@ mod tests {
     fn test_video_src_pad_release() {
         set_up();
 
-        let scene = gst::ElementFactory::make("dkcscene", "scene")
+        let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
         let video_src_0 = scene.get_request_pad("video_src_%u")
             .expect("Could not get requet pad 0");
@@ -435,7 +435,7 @@ mod tests {
     fn test_audio_src_pad_request() {
         set_up();
 
-        let scene = gst::ElementFactory::make("dkcscene", "scene")
+        let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
         let audio_src_0 = scene.get_request_pad("audio_src_%u");
         let audio_src_1 = scene.get_request_pad("audio_src_%u");
@@ -454,7 +454,7 @@ mod tests {
     fn test_audio_src_pad_release() {
         set_up();
 
-        let scene = gst::ElementFactory::make("dkcscene", "scene")
+        let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
         let audio_src_0 = scene.get_request_pad("audio_src_%u")
             .expect("Could not get requet pad 0");
