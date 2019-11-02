@@ -5,7 +5,7 @@ extern crate glib;
 extern crate gstreamer as gst;
 
 gst_plugin_define!(
-    rstutorial,
+    dkcgstplugin,
     "DankCaster Gstreamer Plugin",
     plugin_init,
     "1.0",
