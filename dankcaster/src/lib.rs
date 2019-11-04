@@ -3,6 +3,9 @@ extern crate gstreamer as gst;
 use gst::prelude::*;
 use std::error;
 use std::fmt;
+use std::rc::Rc;
+use std::rc::Weak;
+use std::cell::RefCell;
 
 #[derive(Debug)]
 struct Error {
@@ -21,11 +24,13 @@ impl error::Error for Error {
 }
 
 struct Source {
+    app: Rc<AppImpl>,
     element: gst::Element,
+    id: usize,
 }
 
-struct WrappedSource<'a> {
-    source: &'a gst::Element,
+struct WrappedSource {
+    source_id: usize,
     element: gst::Element,
 }
 
@@ -34,57 +39,99 @@ struct Scene {
 }
 
 struct Sink {
+    app: Rc<AppImpl>,
     element: gst::Element,
+    id: usize,
 }
 
-struct App<'a> {
+struct App {
+    app: Rc<AppImpl>,
+}
+
+struct AppImpl {
     width: u16,
     height: u16,
-    sources: Vec<Source>,
-    scenes: Vec<Scene>,
-    wrapped_sources: Vec<WrappedSource<'a>>,
-    sinks: Vec<Sink>,
+    gst_bin: gst::Bin,
+    gst_scene: gst::Element,
+    sources: RefCell<Vec<Weak<Source>>>,
+    scenes: RefCell<Vec<Weak<Scene>>>,
+    wrapped_sources: RefCell<Vec<Weak<WrappedSource>>>,
+    sinks: RefCell<Vec<Weak<Sink>>>,
 }
 
 fn init() -> Result<(), Error> {
-    unimplemented!();
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        gst::init().unwrap();
+    });
+
+    /*
+     *  TODO: Check if Dankcaster gst-plugin elements are
+     *        to be found in the registry.
+     */
+    Ok(())
 }
 
 fn terminate() -> Result<(), Error> {
     unimplemented!();
 }
 
-fn make_app<'a>(width : u16, height: u16) -> Result<App<'a>, Error> {
+fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Error> {
 
-    Ok(App { width, height,
-             sources: Vec::new(),
-             scenes: Vec::new(),
-             wrapped_sources: Vec::new(),
-             sinks: Vec::new() })
+    let app = Rc::new( AppImpl { width, height,
+                                 gst_bin: gst::Bin::new(name),
+                                 gst_scene: gst::ElementFactory::make("dkcscene", name).unwrap(),
+                                 sources: RefCell::new(vec![]),
+                                 scenes: RefCell::new(vec![]),
+                                 wrapped_sources: RefCell::new(vec![]),
+                                 sinks: RefCell::new(vec![])});
+    Ok(App { app })
 
 }
 
-impl App<'_> {
-    fn make_source(self: &Self,
+impl App {
+    fn make_source(self: &mut Self,
                    source_type: &str,
-                   name: Option<&str>) -> Result<Source, Error> {
+                   name: Option<&str>) -> Result<Weak<Source>, Error> {
 
         match gst::ElementFactory::make(&format!("dkc{}source", source_type),
                                         name) {
-            Some(element) => Ok(Source { element }),
-            None => Err(Error {} ),
+            Some(element) => {
+                let id = self.app.sources.borrow_mut().len();
+
+                let source = Rc::new(
+                    Source { app: self.app.clone(), element, id });
+
+                self.app.sources.borrow_mut().push(
+                    Rc::downgrade(&source));
+
+                Ok(Rc::downgrade(&source))
+            },
+            None => Err(Error {}),
         }
 
     }
 
-    fn make_sink(self: &Self,
+    fn make_sink(self: &mut Self,
                  sink_type: &str,
-                 name: Option<&str>) -> Result<Sink, Error> {
+                 name: Option<&str>) -> Result<Weak<Sink>, Error> {
 
         match gst::ElementFactory::make(&format!("dkc{}sink", sink_type),
                                         name) {
-            Some(element) => Ok(Sink { element }),
-            None => Err(Error {} ),
+            Some(element) => {
+                let id = self.app.sinks.borrow_mut().len();
+
+                let sink = Rc::new(
+                    Sink { app: self.app.clone(), element, id });
+
+                self.app.sinks.borrow_mut().push(
+                    Rc::downgrade(&sink));
+
+                Ok(Rc::downgrade(&sink))
+            },
+            None => Err(Error {}),
         }
 
     }
@@ -93,7 +140,7 @@ impl App<'_> {
 
         match gst::ElementFactory::make("dkcscene", name) {
             Some(element) => Ok(Scene { element }),
-            None => Err(Error {} ),
+            None => Err(Error {}),
         }
 
     }
@@ -112,8 +159,8 @@ mod tests {
 
     fn set_up() {
 
-        use std::sync::{Once, ONCE_INIT};
-        static INIT: Once = ONCE_INIT;
+        use std::sync::Once;
+        static INIT: Once = Once::new();
 
         INIT.call_once(|| {
             gst::init().unwrap();
@@ -131,7 +178,7 @@ mod tests {
         set_up();
 
         assert!(
-            match make_app(1280, 720) {
+            match make_app(Some("test"), 1280, 720) {
                 Ok(el) => true,
                 Err(err) => false
             }
@@ -144,7 +191,7 @@ mod tests {
 
         set_up();
 
-        let app = make_app(1280, 720).unwrap();
+        let mut app = make_app(Some("test"), 1280, 720).unwrap();
 
         assert!(
             match app.make_source("dummy", None) {
@@ -167,7 +214,7 @@ mod tests {
 
         set_up();
 
-        let app = make_app(1280, 720).unwrap();
+        let mut app = make_app(Some("test"), 1280, 720).unwrap();
 
         assert!(
             match app.make_sink("dummy", None) {
