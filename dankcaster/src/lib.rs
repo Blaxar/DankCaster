@@ -53,10 +53,10 @@ struct AppImpl {
     height: u16,
     gst_bin: gst::Bin,
     gst_scene: gst::Element,
-    sources: RefCell<Vec<Weak<Source>>>,
-    scenes: RefCell<Vec<Weak<Scene>>>,
-    wrapped_sources: RefCell<Vec<Weak<WrappedSource>>>,
-    sinks: RefCell<Vec<Weak<Sink>>>,
+    sources: RefCell<Vec<Rc<Source>>>,
+    scenes: RefCell<Vec<Rc<Scene>>>,
+    wrapped_sources: RefCell<Vec<Rc<WrappedSource>>>,
+    sinks: RefCell<Vec<Rc<Sink>>>,
 }
 
 fn init() -> Result<(), Error> {
@@ -101,12 +101,15 @@ impl App {
             Some(element) => {
                 let id = self.app.sources.borrow_mut().len();
 
-                let source = Rc::new(
+                let mut source = Rc::new(
                     Source { app: self.app.clone(), element, id });
 
-                self.app.sources.borrow_mut().push(
-                    Rc::downgrade(&source));
+                self.app.sources.borrow_mut().push(source.clone());
 
+                self.app.gst_bin.add(&source.element);
+
+                // TODO: link pads here
+                
                 Ok(Rc::downgrade(&source))
             },
             None => Err(Error {}),
@@ -126,9 +129,12 @@ impl App {
                 let sink = Rc::new(
                     Sink { app: self.app.clone(), element, id });
 
-                self.app.sinks.borrow_mut().push(
-                    Rc::downgrade(&sink));
+                self.app.sinks.borrow_mut().push(sink.clone());
 
+                self.app.gst_bin.add(&sink.element);
+
+                // TODO: link pads here
+                
                 Ok(Rc::downgrade(&sink))
             },
             None => Err(Error {}),
@@ -191,7 +197,7 @@ mod tests {
 
         set_up();
 
-        let mut app = make_app(Some("test"), 1280, 720).unwrap();
+        let mut app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
 
         assert!(
             match app.make_source("dummy", None) {
@@ -214,7 +220,7 @@ mod tests {
 
         set_up();
 
-        let mut app = make_app(Some("test"), 1280, 720).unwrap();
+        let mut app = make_app(Some("test"), 1280, 720).expect("Could not make app");
 
         assert!(
             match app.make_sink("dummy", None) {
