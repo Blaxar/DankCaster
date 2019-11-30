@@ -8,7 +8,7 @@ use std::rc::Weak;
 use std::cell::RefCell;
 
 #[derive(Debug)]
-struct Error {
+pub struct Error {
 }
 
 impl fmt::Display for Error {
@@ -23,28 +23,29 @@ impl error::Error for Error {
     }
 }
 
-struct Source {
+pub struct Source {
     app: Rc<AppImpl>,
     element: gst::Element,
     id: usize,
 }
 
-struct WrappedSource {
-    source_id: usize,
-    element: gst::Element,
+pub struct WrappedSource {
+    source: Rc<Source>
 }
 
-struct Scene {
-    element: gst::Element,
+pub struct Scene {
+    app: Rc<AppImpl>,
+    wrapped_sources: RefCell<Vec<Rc<WrappedSource>>>,
+    id: usize,
 }
 
-struct Sink {
+pub struct Sink {
     app: Rc<AppImpl>,
     element: gst::Element,
     id: usize,
 }
 
-struct App {
+pub struct App {
     app: Rc<AppImpl>,
 }
 
@@ -55,11 +56,10 @@ struct AppImpl {
     gst_scene: gst::Element,
     sources: RefCell<Vec<Rc<Source>>>,
     scenes: RefCell<Vec<Rc<Scene>>>,
-    wrapped_sources: RefCell<Vec<Rc<WrappedSource>>>,
     sinks: RefCell<Vec<Rc<Sink>>>,
 }
 
-fn init() -> Result<(), Error> {
+pub fn init() -> Result<(), Error> {
     use std::sync::Once;
     static INIT: Once = Once::new();
 
@@ -74,18 +74,17 @@ fn init() -> Result<(), Error> {
     Ok(())
 }
 
-fn terminate() -> Result<(), Error> {
+pub fn terminate() -> Result<(), Error> {
     unimplemented!();
 }
 
-fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Error> {
+pub fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Error> {
 
     let app = Rc::new( AppImpl { width, height,
                                  gst_bin: gst::Bin::new(name),
                                  gst_scene: gst::ElementFactory::make("dkcscene", name).unwrap(),
                                  sources: RefCell::new(vec![]),
                                  scenes: RefCell::new(vec![]),
-                                 wrapped_sources: RefCell::new(vec![]),
                                  sinks: RefCell::new(vec![])});
 
     app.gst_bin.add(&app.gst_scene);
@@ -94,9 +93,9 @@ fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Error> 
 }
 
 impl App {
-    fn make_source(self: &mut Self,
-                   source_type: &str,
-                   name: Option<&str>) -> Result<Weak<Source>, Error> {
+    pub fn make_source(self: &mut Self,
+                       source_type: &str,
+                       name: Option<&str>) -> Result<Weak<Source>, Error> {
 
         match gst::ElementFactory::make(&format!("dkc{}source", source_type),
                                         name) {
@@ -157,9 +156,9 @@ impl App {
 
     }
 
-    fn make_sink(self: &mut Self,
-                 sink_type: &str,
-                 name: Option<&str>) -> Result<Weak<Sink>, Error> {
+    pub fn make_sink(self: &mut Self,
+                     sink_type: &str,
+                     name: Option<&str>) -> Result<Weak<Sink>, Error> {
 
         match gst::ElementFactory::make(&format!("dkc{}sink", sink_type),
                                         name) {
@@ -212,7 +211,7 @@ impl App {
                 if audio_ret.is_err() {
                     return Err(Error {});
                 }
-                
+
                 Ok(Rc::downgrade(&sink))
             },
             None => Err(Error {}),
@@ -220,20 +219,35 @@ impl App {
 
     }
 
-    fn make_scene(self: &Self, name: Option<&str>) -> Result<Scene, Error> {
+    pub fn make_scene(self: &Self, name: Option<&str>) -> Result<Weak<Scene>, Error> {
 
-        match gst::ElementFactory::make("dkcscene", name) {
-            Some(element) => Ok(Scene { element }),
-            None => Err(Error {}),
-        }
+        let id = self.app.scenes.borrow_mut().len();
 
+        let scene = Rc::new(
+            Scene { app: self.app.clone(), wrapped_sources: RefCell::new(vec![]), id });
+
+        self.app.scenes.borrow_mut().push(scene.clone());
+
+        Ok(Rc::downgrade(&scene))
+       
     }
 }
 
 impl Scene {
-    fn add_source(self: &Self, source: &Source)
-                  -> Result<WrappedSource, Error> {
-        unimplemented!();
+    pub fn add_source(self: &Self, source: Weak<Source>)
+                      -> Result<Weak<WrappedSource>, Error> {
+
+        match source.upgrade() {
+            Some(src) => {
+                let id = self.app.sinks.borrow_mut().len();
+                let wrapped_source = Rc::new(
+                    WrappedSource { source: src.clone() });
+                self.wrapped_sources.borrow_mut().push(wrapped_source.clone());
+                Ok(Rc::downgrade(&wrapped_source))
+            },
+            None => Err(Error {})
+        }
+
     }
 }
 
@@ -347,6 +361,43 @@ mod tests {
             match app.make_sink("IdoNotExist", None) {
                 Ok(el) => false,
                 Err(err) => true
+            }
+        );
+
+    }
+
+    #[test]
+    fn test_make_scene() {
+
+        set_up();
+
+        let mut app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
+
+        let scene = app.make_scene(Some("dummyscene"));
+
+        assert!(
+            match &scene {
+                Ok(el) => true,
+                Err(err) => false
+            }
+        );
+
+    }
+
+    #[test]
+    fn test_scene_add_source() {
+
+        set_up();
+
+        let mut app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
+
+        let scene = app.make_scene(Some("dummyscene")).expect("Could not make scene.");
+        let source = app.make_source("dummy", None).expect("Could not make source.");
+
+        assert!(
+            match &scene.upgrade().unwrap().add_source(source) {
+                Ok(wrpd) => true,
+                Err(err) => false
             }
         );
 
