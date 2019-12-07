@@ -178,7 +178,7 @@ impl App {
                     Some(video_sink_pad) => {
                         match self.app.gst_scene.get_request_pad("video_src_%u") {
                             Some(video_src_pad) => {
-                                match video_sink_pad.link(&video_src_pad) {
+                                match video_src_pad.link(&video_sink_pad) {
                                     Ok(_success) => Ok(()),
                                     Err(_error) => Err(Error {}),
                                 }
@@ -197,7 +197,7 @@ impl App {
                     Some(audio_sink_pad) => {
                         match self.app.gst_scene.get_request_pad("audio_src_%u") {
                             Some(audio_src_pad) => {
-                                match audio_sink_pad.link(&audio_src_pad) {
+                                match audio_src_pad.link(&audio_sink_pad) {
                                     Ok(_success) => Ok(()),
                                     Err(_error) => Err(Error {}),
                                 }
