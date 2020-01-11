@@ -52,7 +52,7 @@ pub struct App {
 struct AppImpl {
     width: u16,
     height: u16,
-    gst_bin: gst::Bin,
+    gst_bin: gst::Pipeline,
     gst_scene: gst::Element,
     sources: RefCell<Vec<Rc<Source>>>,
     scenes: RefCell<Vec<Rc<Scene>>>,
@@ -81,7 +81,7 @@ pub fn terminate() -> Result<(), Error> {
 pub fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Error> {
 
     let app = Rc::new( AppImpl { width, height,
-                                 gst_bin: gst::Bin::new(name),
+                                 gst_bin: gst::Pipeline::new(name),
                                  gst_scene: gst::ElementFactory::make("dkcscene", name).unwrap(),
                                  sources: RefCell::new(vec![]),
                                  scenes: RefCell::new(vec![]),
@@ -95,7 +95,7 @@ pub fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Err
 impl App {
     pub fn make_source(self: &mut Self,
                        source_type: &str,
-                       name: Option<&str>) -> Result<Weak<Source>, Error> {
+                       name: Option<&str>) -> Result<Rc<Source>, Error> {
 
         match gst::ElementFactory::make(&format!("dkc{}source", source_type),
                                         name) {
@@ -149,7 +149,7 @@ impl App {
                     return Err(Error {});
                 }
                             
-                Ok(Rc::downgrade(&source))
+                Ok(source)
             },
             None => Err(Error {}),
         }
@@ -158,7 +158,7 @@ impl App {
 
     pub fn make_sink(self: &mut Self,
                      sink_type: &str,
-                     name: Option<&str>) -> Result<Weak<Sink>, Error> {
+                     name: Option<&str>) -> Result<Rc<Sink>, Error> {
 
         match gst::ElementFactory::make(&format!("dkc{}sink", sink_type),
                                         name) {
@@ -212,14 +212,14 @@ impl App {
                     return Err(Error {});
                 }
 
-                Ok(Rc::downgrade(&sink))
+                Ok(sink)
             },
             None => Err(Error {}),
         }
 
     }
 
-    pub fn make_scene(self: &Self, name: Option<&str>) -> Result<Weak<Scene>, Error> {
+    pub fn make_scene(self: &Self, name: Option<&str>) -> Result<Rc<Scene>, Error> {
 
         let id = self.app.scenes.borrow_mut().len();
 
@@ -228,25 +228,46 @@ impl App {
 
         self.app.scenes.borrow_mut().push(scene.clone());
 
-        Ok(Rc::downgrade(&scene))
-       
+        Ok(scene)
+
+    }
+
+    pub fn turn_on(self: &mut Self) -> Result<(), Error> {
+        let pipeline = &self.app.gst_bin;
+
+        pipeline.set_state(gst::State::Playing);
+
+        let bus = pipeline
+            .get_bus()
+            .expect("Pipeline without bus. Shouldn't happen!");
+
+        for msg in bus.iter_timed(gst::CLOCK_TIME_NONE) {
+            use gst::MessageView;
+
+            match msg.view() {
+                MessageView::Eos(..) => break,
+                MessageView::Error(err) => {
+                    pipeline.set_state(gst::State::Null);
+                }
+                _ => (),
+            }
+        }
+
+        pipeline.set_state(gst::State::Null);
+
+        Ok(())
+
     }
 }
 
 impl Scene {
-    pub fn add_source(self: &Self, source: Weak<Source>)
-                      -> Result<Weak<WrappedSource>, Error> {
+    pub fn add_source(self: &Self, source: Rc<Source>)
+                      -> Result<Rc<WrappedSource>, Error> {
 
-        match source.upgrade() {
-            Some(src) => {
-                let id = self.app.sinks.borrow_mut().len();
-                let wrapped_source = Rc::new(
-                    WrappedSource { source: src.clone() });
-                self.wrapped_sources.borrow_mut().push(wrapped_source.clone());
-                Ok(Rc::downgrade(&wrapped_source))
-            },
-            None => Err(Error {})
-        }
+        let id = self.app.sinks.borrow_mut().len();
+        let wrapped_source = Rc::new(WrappedSource { source: source.clone() });
+        self.wrapped_sources.borrow_mut().push(wrapped_source.clone());
+        Ok(wrapped_source)
 
     }
 }
@@ -302,7 +323,7 @@ mod tests {
             }
         );
 
-        let gst_src = &source.unwrap().upgrade().unwrap().element; 
+        let gst_src = &source.unwrap().element; 
 
         assert!(match gst_src.get_static_pad("video_src").unwrap().get_peer() {
             Some(peer_pad) => peer_pad.get_name().eq("video_sink_0"),
@@ -343,7 +364,7 @@ mod tests {
             }
         );
 
-        let gst_sink = &sink.unwrap().upgrade().unwrap().element; 
+        let gst_sink = &sink.unwrap().element;
 
         assert!(match gst_sink.get_static_pad("video_sink").unwrap().get_peer() {
             Some(peer_pad) => peer_pad.get_name().eq("video_src_0"),
@@ -395,7 +416,7 @@ mod tests {
         let source = app.make_source("dummy", None).expect("Could not make source.");
 
         assert!(
-            match &scene.upgrade().unwrap().add_source(source) {
+            match &scene.add_source(source) {
                 Ok(wrpd) => true,
                 Err(err) => false
             }
