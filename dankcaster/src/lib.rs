@@ -1,26 +1,24 @@
 extern crate gstreamer as gst;
 
 use gst::prelude::*;
-use std::error;
-use std::fmt;
 use std::rc::Rc;
-use std::rc::Weak;
 use std::cell::RefCell;
 
-#[derive(Debug)]
-pub struct Error {
-}
+extern crate failure;
+use failure::Error;
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DankCaster-related error")
-    }
-}
+#[macro_use]
+extern crate failure_derive;
 
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        "DankCaster-related error"
-    }
+#[derive(Debug, Fail)]
+#[fail(
+    display = "DankCaster error from {} ({}): {}",
+    src_name, src_type, error_msg
+)]
+pub struct DkcError {
+    src_name: String,
+    src_type: String,
+    error_msg: String
 }
 
 pub struct Source {
@@ -101,6 +99,7 @@ impl App {
                                         name) {
             Some(element) => {
                 let id = self.app.sources.borrow_mut().len();
+                let element_name = element.get_name();
 
                 let source = Rc::new(
                     Source { app: self.app.clone(), element, id });
@@ -108,27 +107,30 @@ impl App {
                 self.app.sources.borrow_mut().push(source.clone());
 
                 if self.app.gst_bin.add(&source.element).is_err() {
-                    return Err(Error {});
+                    return Err(DkcError {src_name: element_name.to_string(),
+                                         src_type: "DkcSource".to_string(),
+                                         error_msg: "Could not add element to bin".to_string()}.into());
                 }
 
-                let video_ret : std::result::Result<(), Error> = match source.element.get_static_pad("video_src") {
+                let video_ret : std::result::Result<(), Error> =  match source.element.get_static_pad("video_src") {
                     Some(video_src_pad) => {
                         match self.app.gst_scene.get_request_pad("video_sink_%u") {
                             Some(video_sink_pad) => {
                                 match video_src_pad.link(&video_sink_pad) {
                                     Ok(_success) => Ok(()),
-                                    Err(_error) => Err(Error {}),
+                                    Err(_error) => Err(DkcError {src_name: element_name.to_string(),
+                                                                 src_type: "DkcSource".to_string(),
+                                                                 error_msg: "Could not link video pads.".to_string()}
+                                                       .into()),
                                 }
                             },
-                            None => Err(Error {})
+                            None => Err(DkcError {src_name: element_name.to_string(),
+                                                  src_type: "DkcSource".to_string(),
+                                                  error_msg: "Could not find video sink pad.".to_string()}.into())
                         }
                     },
                     None => Ok(()),
-                };
-
-                if video_ret.is_err() {
-                    return Err(Error {});
-                }
+                }; video_ret?;
 
                 let audio_ret : std::result::Result<(), Error> = match source.element.get_static_pad("audio_src") {
                     Some(audio_src_pad) => {
@@ -136,22 +138,25 @@ impl App {
                             Some(audio_sink_pad) => {
                                 match audio_src_pad.link(&audio_sink_pad) {
                                     Ok(_success) => Ok(()),
-                                    Err(_error) => Err(Error {}),
+                                    Err(_error) => Err(DkcError {src_name: element_name.to_string(),
+                                                                 src_type: "DkcSource".to_string(),
+                                                                 error_msg: "Could not link audio pads.".to_string()}
+                                                       .into()),
                                 }
                             },
-                            None => Err(Error {})
+                            None => Err(DkcError {src_name: element_name.to_string(),
+                                                  src_type: "DkcSource".to_string(),
+                                                  error_msg: "Could not find audio sink pad.".to_string()}.into())
                         }
                     },
                     None => Ok(()),
-                };
+                }; audio_ret?;
 
-                if audio_ret.is_err() {
-                    return Err(Error {});
-                }
-                            
                 Ok(source)
             },
-            None => Err(Error {}),
+            None => Err(DkcError {src_name: format!("{:?}", name),
+                                  src_type: "DkcSource".to_string(),
+                                  error_msg: "Could not make source element.".to_string()}.into()),
         }
 
     }
@@ -164,6 +169,7 @@ impl App {
                                         name) {
             Some(element) => {
                 let id = self.app.sinks.borrow_mut().len();
+                let element_name = element.get_name();
 
                 let sink = Rc::new(
                     Sink { app: self.app.clone(), element, id });
@@ -171,7 +177,9 @@ impl App {
                 self.app.sinks.borrow_mut().push(sink.clone());
 
                 if self.app.gst_bin.add(&sink.element).is_err() {
-                    return Err(Error {});
+                    return Err(DkcError {src_name: element_name.to_string(),
+                                         src_type: "DkcSink".to_string(),
+                                         error_msg: "Could not add element to bin".to_string()}.into());
                 }
 
                 let video_ret : std::result::Result<(), Error> = match sink.element.get_static_pad("video_sink") {
@@ -180,18 +188,19 @@ impl App {
                             Some(video_src_pad) => {
                                 match video_src_pad.link(&video_sink_pad) {
                                     Ok(_success) => Ok(()),
-                                    Err(_error) => Err(Error {}),
+                                    Err(_error) => Err(DkcError {src_name: element_name.to_string(),
+                                                                 src_type: "DkcSink".to_string(),
+                                                                 error_msg: "Could not link video pads.".to_string()}
+                                                       .into()),
                                 }
                             },
-                            None => Err(Error {})
+                            None => Err(DkcError {src_name: element_name.to_string(),
+                                                  src_type: "DkcSink".to_string(),
+                                                  error_msg: "Could not find video sink pad.".to_string()}.into())
                         }
                     },
                     None => Ok(()),
-                };
-
-                if video_ret.is_err() {
-                    return Err(Error {});
-                }
+                }; video_ret?;
 
                 let audio_ret : std::result::Result<(), Error> = match sink.element.get_static_pad("audio_sink") {
                     Some(audio_sink_pad) => {
@@ -199,22 +208,25 @@ impl App {
                             Some(audio_src_pad) => {
                                 match audio_src_pad.link(&audio_sink_pad) {
                                     Ok(_success) => Ok(()),
-                                    Err(_error) => Err(Error {}),
+                                    Err(_error) => Err(DkcError {src_name: element_name.to_string(),
+                                                                 src_type: "DkcSink".to_string(),
+                                                                 error_msg: "Could not link audio pads.".to_string()}
+                                                       .into()),
                                 }
                             },
-                            None => Err(Error {})
+                            None => Err(DkcError {src_name: element_name.to_string(),
+                                                  src_type: "DkcSink".to_string(),
+                                                  error_msg: "Could not find audio sink pad.".to_string()}.into())
                         }
                     },
                     None => Ok(()),
-                };
-
-                if audio_ret.is_err() {
-                    return Err(Error {});
-                }
+                }; audio_ret?;
 
                 Ok(sink)
             },
-            None => Err(Error {}),
+            None => Err(DkcError {src_name: format!("{:?}", name),
+                                  src_type: "DkcSink".to_string(),
+                                  error_msg: "Could not make source element.".to_string()}.into()),
         }
 
     }

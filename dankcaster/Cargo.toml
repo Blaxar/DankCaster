@@ -6,3 +6,5 @@ authors = ["Blaxar Waldarax <blaxar.waldarax@gmail.com>"]
 [dependencies]
 glib = { git = "https://github.com/gtk-rs/glib" }
 gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
+failure = "0.1"
+failure_derive = "0.1"
