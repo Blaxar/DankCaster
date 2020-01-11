@@ -97,7 +97,7 @@ impl App {
 
         match gst::ElementFactory::make(&format!("dkc{}source", source_type),
                                         name) {
-            Some(element) => {
+            Ok(element) => {
                 let id = self.app.sources.borrow_mut().len();
                 let element_name = element.get_name();
 
@@ -154,9 +154,9 @@ impl App {
 
                 Ok(source)
             },
-            None => Err(DkcError {src_name: format!("{:?}", name),
-                                  src_type: "DkcSource".to_string(),
-                                  error_msg: "Could not make source element.".to_string()}.into()),
+            Err(_) => Err(DkcError {src_name: format!("{:?}", name),
+                                    src_type: "DkcSource".to_string(),
+                                    error_msg: "Could not make source element.".to_string()}.into()),
         }
 
     }
@@ -167,7 +167,7 @@ impl App {
 
         match gst::ElementFactory::make(&format!("dkc{}sink", sink_type),
                                         name) {
-            Some(element) => {
+            Ok(element) => {
                 let id = self.app.sinks.borrow_mut().len();
                 let element_name = element.get_name();
 
@@ -224,9 +224,9 @@ impl App {
 
                 Ok(sink)
             },
-            None => Err(DkcError {src_name: format!("{:?}", name),
-                                  src_type: "DkcSink".to_string(),
-                                  error_msg: "Could not make source element.".to_string()}.into()),
+            Err(_) => Err(DkcError {src_name: format!("{:?}", name),
+                                    src_type: "DkcSink".to_string(),
+                                    error_msg: "Could not make source element.".to_string()}.into()),
         }
 
     }

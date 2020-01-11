@@ -323,8 +323,8 @@ mod tests {
 
         assert!(
             match gst::ElementFactory::make("dkcscene", Some("scene")) {
-                Some(el) => true,
-                None => false
+                Ok(_) => true,
+                Err(_) => false
             }
         );
     }
