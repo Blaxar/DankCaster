@@ -18,19 +18,39 @@ impl ObjectImpl for DkcDummySink {
 
         let video_elem = gst::ElementFactory::make("autovideosink", Some("testvideosink"))
             .expect("Could not create video sink element.");
+        let video_capsf = gst::ElementFactory::make("capsfilter", Some("videocapsfilter"))
+            .expect("Could not create video capsfilter element.");
 
         let audio_elem = gst::ElementFactory::make("autoaudiosink", Some("testaudiosink"))
             .expect("Could not create audio sink element.");
+        let audio_capsf = gst::ElementFactory::make("capsfilter", Some("audiocapsfilter"))
+            .expect("Could not create audio capsfilter element.");
 
         self.add_element(bin, &video_elem);
+        self.add_element(bin, &video_capsf);
         self.add_element(bin, &audio_elem);
+        self.add_element(bin, &audio_capsf);
 
-        let video_pad = video_elem.get_static_pad("sink").unwrap();
+        video_capsf.link(&video_elem).expect("Could not link video capsfilter to audio element.");
+        audio_capsf.link(&audio_elem).expect("Could not link audio capsfilter to audio element.");
 
-        let audio_pad = audio_elem.get_static_pad("sink").unwrap();
+        let video_caps = gst::Caps::new_simple(
+            "video/x-raw",
+            &[],
+        );
+
+        let audio_caps = gst::Caps::new_simple(
+            "audio/x-raw",
+            &[],
+        );
+
+        video_capsf.set_property("caps", &video_caps).expect("Could not set caps on video capsfilter.");
+        audio_capsf.set_property("caps", &audio_caps).expect("Could not set caps on audio capsfilter.");
+
+        let video_pad = video_capsf.get_static_pad("sink").unwrap();
+        let audio_pad = audio_capsf.get_static_pad("sink").unwrap();
 
         let video_ghost_pad = gst::GhostPad::new(Some("video_sink"), &video_pad).unwrap();
-
         let audio_ghost_pad = gst::GhostPad::new(Some("audio_sink"), &audio_pad).unwrap();
 
         bin.add_pad(&video_ghost_pad).unwrap();
