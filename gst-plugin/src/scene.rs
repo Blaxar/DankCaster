@@ -46,8 +46,19 @@ impl DkcScene {
 
     fn class_update_audio_input_handler(pad: &gst::Pad, param_name: &str, param_value: &glib::variant::Variant)
                                         -> Option<glib::value::Value> {
-        // not implemented yet
-        Some(false.to_value())
+
+        let mixer_pad = pad.downcast_ref::<gst::GhostPad>().expect("Could not cast Pad as GhostPad")
+            .get_target().expect("Could not get ghost pad target pad (queue sink pad)")
+            .get_parent_element().expect("Could not get queue")
+            .get_static_pad("src").expect("Could not get queue src")
+            .get_peer().expect("Could not get queue src peer");
+
+        match param_name {
+            "mute" =>
+                Some(try_set_property::<bool>(&mixer_pad, param_name, param_value).to_value()),
+            "volume" => Some(try_set_property::<f64>(&mixer_pad, param_name, param_value).to_value()),
+            _ => Some(false.to_value())
+        }
     }
 
     fn class_update_input_handler(scht_: &glib::subclass::types::SignalClassHandlerToken, v: &[glib::value::Value])
@@ -579,11 +590,14 @@ mod tests {
     }
 
     #[test]
-    fn test_update_input_action() { // Only for video inputs right now
+    fn test_update_input_action() {
         set_up();
 
         let scene = gst::ElementFactory::make("dkcscene", Some("scene"))
             .expect("Could not make dkcscene element");
+
+        /* Testing video pad */
+
         let video_sink_0 = scene.get_request_pad("video_sink_%u")
             .expect("Could not get request pad 0");
 
@@ -617,6 +631,31 @@ mod tests {
 
         // This parameter does not exist.
         assert!(!scene.emit("update-input", &[&"video_sink_0", &"what", &(3.0 as f64).to_variant()])
+                .unwrap().unwrap().get::<bool>().unwrap().unwrap());
+
+        /* Testing audio pad */
+
+        let audio_sink_0 = scene.get_request_pad("audio_sink_%u")
+            .expect("Could not get request pad 0");
+
+        // Those parameters have valid value types.
+        assert!(scene.emit("update-input", &[&"audio_sink_0", &"mute", &true.to_variant()])
+                .unwrap().unwrap().get::<bool>().unwrap().unwrap());
+        assert!(scene.emit("update-input", &[&"audio_sink_0", &"mute", &false.to_variant()])
+                .unwrap().unwrap().get::<bool>().unwrap().unwrap());
+        assert!(scene.emit("update-input", &[&"audio_sink_0", &"volume", &(0.5 as f64).to_variant()])
+                .unwrap().unwrap().get::<bool>().unwrap().unwrap());
+
+        // Those parameters have invalid value types.
+        assert!(!scene.emit("update-input", &[&"audio_sink_0", &"emit-signals", &(1).to_variant()])
+                .unwrap().unwrap().get::<bool>().unwrap().unwrap());
+        assert!(!scene.emit("update-input", &[&"audio_sink_0", &"mute", &(1).to_variant()])
+                .unwrap().unwrap().get::<bool>().unwrap().unwrap());
+        assert!(!scene.emit("update-input", &[&"audio_sink_0", &"volume", &(1).to_variant()])
+                .unwrap().unwrap().get::<bool>().unwrap().unwrap());
+
+        // This parameter does not exist.
+        assert!(!scene.emit("update-input", &[&"audio_sink_0", &"what", &(3.0 as f64).to_variant()])
                 .unwrap().unwrap().get::<bool>().unwrap().unwrap());
     }
 
