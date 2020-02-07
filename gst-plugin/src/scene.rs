@@ -13,6 +13,39 @@ struct DkcScene {
     audio_tee: gst::Element,
 }
 
+struct DkcSceneSinkPad { }
+
+impl ObjectImpl for DkcSceneSinkPad {
+
+    glib_object_impl!();
+
+    fn constructed(&self, obj: &glib::Object) {
+        let ghost_pad = obj.downcast_ref::<gst::GhostPad>().unwrap();
+    }
+}
+
+impl PadImpl for DkcSceneSinkPad {
+
+}
+
+impl GhostPadImpl for DkcSceneSinkPad {
+
+}
+
+impl ObjectSubclass for DkcSceneSinkPad {
+
+    const NAME: &'static str = "DkcSceneSinkPad";
+    type ParentType = gst::GhostPad;
+    type Instance = subclass::simple::InstanceStruct<Self>;
+    type Class = subclass::simple::ClassStruct<Self>;
+
+    glib_object_subclass!();
+
+    fn class_init(klass: &mut subclass::simple::ClassStruct<Self>) {
+        
+    }
+}
+
 fn try_set_property<T: glib::StaticVariantType + glib::variant::FromVariant + glib::value::SetValue>
     (mixer_pad: &gst::Pad,
      param_name: &str,
@@ -150,10 +183,11 @@ fn handle_sink_request(
         let ghost_pad_name = format!("video_{}", mixer_pad.get_name());
         queue_src_pad.link(&mixer_pad).expect("Could not link queue element to video mixer");
 
-        /* Add ghost video sink pad to the element (targeting mixer sink) */
+        /* Add ghost video sink pad to the element (targeting mixer sink) */ /*
         let ghost_pad = gst::GhostPad::new_from_template(Some(&*ghost_pad_name),
                                                          &queue_sink_pad,
-                                                         templ).unwrap();
+                                                         templ).unwrap(); */
+        let ghost_pad = DkcSceneSinkPad {} ;
         element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
 
         Some(ghost_pad.upcast::<gst::Pad>())
@@ -336,7 +370,7 @@ impl BinImpl for DkcScene {}
 
 impl ObjectSubclass for DkcScene {
 
-    const NAME: &'static str = "DkcDummyScene";
+    const NAME: &'static str = "DkcScene";
     type ParentType = gst::Bin;
     type Instance = gst::subclass::ElementInstanceStruct<Self>;
     type Class = subclass::simple::ClassStruct<Self>;
@@ -348,7 +382,7 @@ impl ObjectSubclass for DkcScene {
             cat: gst::DebugCategory::new(
                 "dkcscene",
                 gst::DebugColorFlags::empty(),
-                Some("DankCaster dummy scene element"),
+                Some("DankCaster scene element"),
             ),
             video_mixer: gst::ElementFactory::make("compositor", None)
                 .expect("Could not create video source element."),
