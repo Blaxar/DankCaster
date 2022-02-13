@@ -1,20 +1,4 @@
-
-#[macro_use]
-extern crate glib;
-#[macro_use]
-extern crate gstreamer as gst;
-
-gst_plugin_define!(
-    dkcgstplugin,
-    "DankCaster Gstreamer Plugin",
-    plugin_init,
-    "1.0",
-    "MIT/X11",
-    "dkcgstplugin",
-    "dkcgstplugin",
-    "https://github.com/Blaxar/DankCaster",
-    "2018-11-17"
-);
+use gst::glib;
 
 mod source;
 mod sink;
@@ -26,3 +10,15 @@ fn plugin_init(plugin: &gst::Plugin)  -> Result<(), glib::BoolError> {
     scene::register(plugin)?;
     Ok(())
 }
+
+gst::plugin_define!(
+    dkc,
+    env!("CARGO_PKG_DESCRIPTION"),
+    plugin_init,
+    env!("CARGO_PKG_VERSION"),
+    "MIT/X11",
+    env!("CARGO_PKG_NAME"),
+    env!("CARGO_PKG_NAME"),
+    env!("CARGO_PKG_REPOSITORY"),
+    "2018-11-17"
+);

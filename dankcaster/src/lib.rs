@@ -85,7 +85,7 @@ pub fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Err
                                  scenes: RefCell::new(vec![]),
                                  sinks: RefCell::new(vec![])});
 
-    app.gst_bin.add(&app.gst_scene);
+    app.gst_bin.add(&app.gst_scene).expect("Could not add scene to bin.");
     Ok(App { app })
 
 }
@@ -99,7 +99,7 @@ impl App {
                                         name) {
             Ok(element) => {
                 let id = self.app.sources.borrow_mut().len();
-                let element_name = element.get_name();
+                let element_name = element.name();
 
                 let source = Rc::new(
                     Source { app: self.app.clone(), element, id });
@@ -112,9 +112,9 @@ impl App {
                                          error_msg: "Could not add element to bin".to_string()}.into());
                 }
 
-                let video_ret : std::result::Result<(), Error> =  match source.element.get_static_pad("video_src") {
+                let video_ret : std::result::Result<(), Error> =  match source.element.static_pad("video_src") {
                     Some(video_src_pad) => {
-                        match self.app.gst_scene.get_request_pad("video_sink_%u") {
+                        match self.app.gst_scene.request_pad_simple("video_sink_%u") {
                             Some(video_sink_pad) => {
                                 match video_src_pad.link(&video_sink_pad) {
                                     Ok(_success) => Ok(()),
@@ -132,9 +132,9 @@ impl App {
                     None => Ok(()),
                 }; video_ret?;
 
-                let audio_ret : std::result::Result<(), Error> = match source.element.get_static_pad("audio_src") {
+                let audio_ret : std::result::Result<(), Error> = match source.element.static_pad("audio_src") {
                     Some(audio_src_pad) => {
-                        match self.app.gst_scene.get_request_pad("audio_sink_%u") {
+                        match self.app.gst_scene.request_pad_simple("audio_sink_%u") {
                             Some(audio_sink_pad) => {
                                 match audio_src_pad.link(&audio_sink_pad) {
                                     Ok(_success) => Ok(()),
@@ -169,7 +169,7 @@ impl App {
                                         name) {
             Ok(element) => {
                 let id = self.app.sinks.borrow_mut().len();
-                let element_name = element.get_name();
+                let element_name = element.name();
 
                 let sink = Rc::new(
                     Sink { app: self.app.clone(), element, id });
@@ -182,9 +182,9 @@ impl App {
                                          error_msg: "Could not add element to bin".to_string()}.into());
                 }
 
-                let video_ret : std::result::Result<(), Error> = match sink.element.get_static_pad("video_sink") {
+                let video_ret : std::result::Result<(), Error> = match sink.element.static_pad("video_sink") {
                     Some(video_sink_pad) => {
-                        match self.app.gst_scene.get_request_pad("video_src_%u") {
+                        match self.app.gst_scene.request_pad_simple("video_src_%u") {
                             Some(video_src_pad) => {
                                 match video_src_pad.link(&video_sink_pad) {
                                     Ok(_success) => Ok(()),
@@ -202,9 +202,9 @@ impl App {
                     None => Ok(()),
                 }; video_ret?;
 
-                let audio_ret : std::result::Result<(), Error> = match sink.element.get_static_pad("audio_sink") {
+                let audio_ret : std::result::Result<(), Error> = match sink.element.static_pad("audio_sink") {
                     Some(audio_sink_pad) => {
-                        match self.app.gst_scene.get_request_pad("audio_src_%u") {
+                        match self.app.gst_scene.request_pad_simple("audio_src_%u") {
                             Some(audio_src_pad) => {
                                 match audio_src_pad.link(&audio_sink_pad) {
                                     Ok(_success) => Ok(()),
@@ -231,7 +231,7 @@ impl App {
 
     }
 
-    pub fn make_scene(self: &Self, name: Option<&str>) -> Result<Rc<Scene>, Error> {
+    pub fn make_scene(self: &Self, _name: Option<&str>) -> Result<Rc<Scene>, Error> {
 
         let id = self.app.scenes.borrow_mut().len();
 
@@ -247,25 +247,25 @@ impl App {
     pub fn turn_on(self: &mut Self) -> Result<(), Error> {
         let pipeline = &self.app.gst_bin;
 
-        pipeline.set_state(gst::State::Playing);
+        pipeline.set_state(gst::State::Playing).expect("Could not set pipeline state to 'Playing'.");
 
         let bus = pipeline
-            .get_bus()
+            .bus()
             .expect("Pipeline without bus. Shouldn't happen!");
 
-        for msg in bus.iter_timed(gst::CLOCK_TIME_NONE) {
+        for msg in bus.iter_timed(gst::ClockTime::NONE) {
             use gst::MessageView;
 
             match msg.view() {
                 MessageView::Eos(..) => break,
-                MessageView::Error(err) => {
-                    pipeline.set_state(gst::State::Null);
+                MessageView::Error(_err) => {
+                    pipeline.set_state(gst::State::Null).expect("Could not set pipeline state to 'Null'.");
                 }
                 _ => (),
             }
         }
 
-        pipeline.set_state(gst::State::Null);
+        pipeline.set_state(gst::State::Null).expect("Could not set pipeline state to 'Null'.");
 
         Ok(())
 
@@ -276,7 +276,7 @@ impl Scene {
     pub fn add_source(self: &Self, source: Rc<Source>)
                       -> Result<Rc<WrappedSource>, Error> {
 
-        let id = self.app.sinks.borrow_mut().len();
+        let _id = self.app.sinks.borrow_mut().len();
         let wrapped_source = Rc::new(WrappedSource { source: source.clone() });
         self.wrapped_sources.borrow_mut().push(wrapped_source.clone());
         Ok(wrapped_source)
@@ -286,6 +286,7 @@ impl Scene {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     fn set_up() {
@@ -299,7 +300,7 @@ mod tests {
 
     }
 
-    fn tear_down() {
+    fn _tear_down() {
         unimplemented!();
     }
 
@@ -310,8 +311,8 @@ mod tests {
 
         assert!(
             match make_app(Some("test"), 1280, 720) {
-                Ok(el) => true,
-                Err(err) => false
+                Ok(_el) => true,
+                Err(_err) => false
             }
         );
 
@@ -330,20 +331,20 @@ mod tests {
 
         assert!(
             match &source {
-                Ok(el) => true,
-                Err(err) => false
+                Ok(_el) => true,
+                Err(_err) => false
             }
         );
 
         let gst_src = &source.unwrap().element; 
 
-        assert!(match gst_src.get_static_pad("video_src").unwrap().get_peer() {
-            Some(peer_pad) => peer_pad.get_name().eq("video_sink_0"),
+        assert!(match gst_src.static_pad("video_src").unwrap().peer() {
+            Some(peer_pad) => peer_pad.name().eq("video_sink_0"),
             None => false
         });
 
-        assert!(match gst_src.get_static_pad("audio_src").unwrap().get_peer() {
-            Some(peer_pad) => peer_pad.get_name().eq("audio_sink_0"),
+        assert!(match gst_src.static_pad("audio_src").unwrap().peer() {
+            Some(peer_pad) => peer_pad.name().eq("audio_sink_0"),
             None => false
         });
 
@@ -351,8 +352,8 @@ mod tests {
 
         assert!(
             match app.make_source("IdoNotExist", None) {
-                Ok(el) => false,
-                Err(err) => true
+                Ok(_el) => false,
+                Err(_err) => true
             }
         );
 
@@ -371,20 +372,20 @@ mod tests {
 
         assert!(
             match &sink {
-                Ok(el) => true,
-                Err(err) => false
+                Ok(_el) => true,
+                Err(_err) => false
             }
         );
 
         let gst_sink = &sink.unwrap().element;
 
-        assert!(match gst_sink.get_static_pad("video_sink").unwrap().get_peer() {
-            Some(peer_pad) => peer_pad.get_name().eq("video_src_0"),
+        assert!(match gst_sink.static_pad("video_sink").unwrap().peer() {
+            Some(peer_pad) => peer_pad.name().eq("video_src_0"),
             None => false
         });
 
-        assert!(match gst_sink.get_static_pad("audio_sink").unwrap().get_peer() {
-            Some(peer_pad) => peer_pad.get_name().eq("audio_src_0"),
+        assert!(match gst_sink.static_pad("audio_sink").unwrap().peer() {
+            Some(peer_pad) => peer_pad.name().eq("audio_src_0"),
             None => false
         });
 
@@ -392,8 +393,8 @@ mod tests {
 
         assert!(
             match app.make_sink("IdoNotExist", None) {
-                Ok(el) => false,
-                Err(err) => true
+                Ok(_el) => false,
+                Err(_err) => true
             }
         );
 
@@ -404,14 +405,14 @@ mod tests {
 
         set_up();
 
-        let mut app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
+        let app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
 
         let scene = app.make_scene(Some("dummyscene"));
 
         assert!(
             match &scene {
-                Ok(el) => true,
-                Err(err) => false
+                Ok(_el) => true,
+                Err(_err) => false
             }
         );
 
@@ -429,8 +430,8 @@ mod tests {
 
         assert!(
             match &scene.add_source(source) {
-                Ok(wrpd) => true,
-                Err(err) => false
+                Ok(_wrpd) => true,
+                Err(_err) => false
             }
         );
 

@@ -1,19 +1,21 @@
 [package]
-name = "dankcaster-gst-plugin"
-version = "0.1.0"
-authors = ["Blaxar Waldarax <blaxar.waldarax@gmail.com>"]
+name = "dankcaster_gst_plugin"
+version = "0.1.1"
+authors = ["Julien 'Blaxar' Bardagi <blaxar.waldarax@gmail.com>"]
+repository = "https://github.com/Blaxar/DankCaster"
+license = "MIT/Apache-2.0"
+edition = "2021"
+rust-version = "1.60"
+description = "Set of elements used by DankCaster for scene configuration"
 
 [dependencies]
-glib = { git = "https://github.com/gtk-rs/glib" }
-gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
-gstreamer-base = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
-gstreamer-video = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
-gstreamer-audio = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
-byte-slice-cast = "0.2"
+gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", tag = "0.18.8" }
+gst-base = { package = "gstreamer-base", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", tag = "0.18.8" }
+gst-video = { package = "gstreamer-video", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", tag = "0.18.8" }
+gst-audio = { package = "gstreamer-audio", git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", tag = "0.18.8" }
+byte-slice-cast = "1.0"
 num-traits = "0.2"
-
-[dev-dependencies]
-dankcaster-gst-plugin = {path = "."} # For testing purposes
+once_cell = "1.0"
 
 [lib]
 name = "gstdkcplugin"

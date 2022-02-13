@@ -1,10 +1,15 @@
 [package]
 name = "dankcaster"
 version = "0.1.0"
-authors = ["Blaxar Waldarax <blaxar.waldarax@gmail.com>"]
+authors = ["Julien 'Blaxar' Bardagi <blaxar.waldarax@gmail.com>"]
+repository = "https://github.com/Blaxar/DankCaster"
+license = "MIT/Apache-2.0"
+edition = "2021"
+rust-version = "1.60"
+description = "Main DankCaster library"
 
 [dependencies]
 glib = { git = "https://github.com/gtk-rs/glib" }
-gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs" }
+gstreamer = { git = "https://gitlab.freedesktop.org/gstreamer/gstreamer-rs", tag = "0.18.8" }
 failure = "0.1"
 failure_derive = "0.1"
