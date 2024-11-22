@@ -76,11 +76,11 @@ pub fn terminate() -> Result<(), Error> {
     unimplemented!();
 }
 
-pub fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Error> {
+pub fn make_app(name: &str, width : u16, height: u16) -> Result<App, Error> {
 
     let app = Rc::new( AppImpl { width, height,
-                                 gst_bin: gst::Pipeline::new(name),
-                                 gst_scene: gst::ElementFactory::make("dkcscene").name(name.unwrap()).build().unwrap(),
+                                 gst_bin: gst::Pipeline::with_name(name),
+                                 gst_scene: gst::ElementFactory::make("dkcscene").name(name).build().unwrap(),
                                  sources: RefCell::new(vec![]),
                                  scenes: RefCell::new(vec![]),
                                  sinks: RefCell::new(vec![])});
@@ -95,7 +95,7 @@ impl App {
                        source_type: &str,
                        name: Option<&str>) -> Result<Rc<Source>, Error> {
 
-        match gst::ElementFactory::make(&format!("dkc{}source", source_type)).name(name.unwrap()).build() {
+        match gst::ElementFactory::make_with_name(&format!("dkc{}source", source_type), name) {
             Ok(element) => {
                 let id = self.app.sources.borrow_mut().len();
                 let element_name = element.name();
@@ -164,7 +164,7 @@ impl App {
                      sink_type: &str,
                      name: Option<&str>) -> Result<Rc<Sink>, Error> {
 
-        match gst::ElementFactory::make(&format!("dkc{}sink", sink_type)).name(name.unwrap()).build() {
+        match gst::ElementFactory::make_with_name(&format!("dkc{}sink", sink_type), name) {
             Ok(element) => {
                 let id = self.app.sinks.borrow_mut().len();
                 let element_name = element.name();
@@ -308,7 +308,7 @@ mod tests {
         set_up();
 
         assert!(
-            match make_app(Some("test"), 1280, 720) {
+            match make_app("test", 1280, 720) {
                 Ok(_el) => true,
                 Err(_err) => false
             }
@@ -321,7 +321,7 @@ mod tests {
 
         set_up();
 
-        let mut app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
+        let mut app = make_app("test", 1280, 720).expect("Could not make app.");
 
         assert_eq!(app.app.sources.borrow_mut().len(), 0);
 
@@ -362,7 +362,7 @@ mod tests {
 
         set_up();
 
-        let mut app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
+        let mut app = make_app("test", 1280, 720).expect("Could not make app.");
 
         assert_eq!(app.app.sinks.borrow_mut().len(), 0);
 
@@ -403,7 +403,7 @@ mod tests {
 
         set_up();
 
-        let app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
+        let app = make_app("test", 1280, 720).expect("Could not make app.");
 
         let scene = app.make_scene(Some("dummyscene"));
 
@@ -421,7 +421,7 @@ mod tests {
 
         set_up();
 
-        let mut app = make_app(Some("test"), 1280, 720).expect("Could not make app.");
+        let mut app = make_app("test", 1280, 720).expect("Could not make app.");
 
         let scene = app.make_scene(Some("dummyscene")).expect("Could not make scene.");
         let source = app.make_source("dummy", None).expect("Could not make source.");

@@ -56,10 +56,10 @@ impl ObjectImpl for DkcDummySink {
         let video_pad = video_capsf.static_pad("sink").unwrap();
         let audio_pad = audio_capsf.static_pad("sink").unwrap();
 
-        let video_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src).name("video_sink")
-            .with_target(&video_pad).unwrap().build();
-        let audio_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src).name("audio_sink")
-            .with_target(&audio_pad).unwrap().build();
+        let video_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Sink)
+            .with_target(&video_pad).unwrap().name("video_sink").build();
+        let audio_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Sink)
+            .with_target(&audio_pad).unwrap().name("audio_sink").build();
 
         let obj = self.obj();
         obj.add_pad(&video_ghost_pad).unwrap();

@@ -37,10 +37,10 @@ impl ObjectImpl for DkcDummySource {
         let video_pad = video_elem.static_pad("src").unwrap();
         let audio_pad = audio_elem.static_pad("src").unwrap();
 
-        let video_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src).name("video_src")
-            .with_target(&video_pad).unwrap().build();
-        let audio_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src).name("audio_src")
-            .with_target(&audio_pad).unwrap().build();
+        let video_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src)
+            .with_target(&video_pad).unwrap().name("video_src").build();
+        let audio_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src)
+            .with_target(&audio_pad).unwrap().name("audio_src").build();
 
         let obj = self.obj();
         obj.add_pad(&video_ghost_pad).unwrap();
