@@ -2,14 +2,14 @@ use gst::glib;
 use gst::prelude::*;
 use gst::subclass::prelude::*;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 #[derive(Default)]
 pub struct DkcDummySink {
 
 }
 
-static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
+static CAT: LazyLock<gst::DebugCategory> = LazyLock::new(|| {
     gst::DebugCategory::new(
         "dkcdummysink",
         gst::DebugColorFlags::empty(),
@@ -25,31 +25,29 @@ impl ObjectSubclass for DkcDummySink {
 }
 
 impl ObjectImpl for DkcDummySink {
-    fn constructed(&self, obj: &Self::Type) {
-        let video_elem = gst::ElementFactory::make("autovideosink", Some("testvideosink"))
+    fn constructed(&self) {
+        let video_elem = gst::ElementFactory::make("autovideosink").name("testvideosink").build()
             .expect("Could not create video sink element.");
-        let video_capsf = gst::ElementFactory::make("capsfilter", Some("videocapsfilter"))
+        let video_capsf = gst::ElementFactory::make("capsfilter").name("videocapsfilter").build()
             .expect("Could not create video capsfilter element.");
-        let audio_elem = gst::ElementFactory::make("autoaudiosink", Some("testaudiosink"))
+        let audio_elem = gst::ElementFactory::make("autoaudiosink").name("testaudiosink").build()
             .expect("Could not create audio sink element.");
-        let audio_capsf = gst::ElementFactory::make("capsfilter", Some("audiocapsfilter"))
+        let audio_capsf = gst::ElementFactory::make("capsfilter").name("audiocapsfilter").build()
             .expect("Could not create audio capsfilter element.");
 
-        self.add_element(obj, &video_elem).expect("Could not add video element to this sink");
-        self.add_element(obj, &video_capsf).expect("Could not add video caps filter to this sink");
-        self.add_element(obj, &audio_elem).expect("Could not add audio element to this sink");
-        self.add_element(obj, &audio_capsf).expect("Could not add audio caps filter to this sink");
+        self.add_element(&video_elem).expect("Could not add video element to this sink");
+        self.add_element(&video_capsf).expect("Could not add video caps filter to this sink");
+        self.add_element(&audio_elem).expect("Could not add audio element to this sink");
+        self.add_element(&audio_capsf).expect("Could not add audio caps filter to this sink");
 
         video_capsf.link(&video_elem).expect("Could not link video capsfilter to audio element.");
         audio_capsf.link(&audio_elem).expect("Could not link audio capsfilter to audio element.");
 
-        let video_caps = gst::Caps::new_simple(
-            "video/x-raw",
-            &[],
+        let video_caps = gst::Caps::new_empty_simple(
+            "video/x-raw"
         );
-        let audio_caps = gst::Caps::new_simple(
-            "audio/x-raw",
-            &[],
+        let audio_caps = gst::Caps::new_empty_simple(
+            "audio/x-raw"
         );
 
         video_capsf.set_property("caps", &video_caps);
@@ -58,9 +56,12 @@ impl ObjectImpl for DkcDummySink {
         let video_pad = video_capsf.static_pad("sink").unwrap();
         let audio_pad = audio_capsf.static_pad("sink").unwrap();
 
-        let video_ghost_pad = gst::GhostPad::with_target(Some("video_sink"), &video_pad).unwrap();
-        let audio_ghost_pad = gst::GhostPad::with_target(Some("audio_sink"), &audio_pad).unwrap();
+        let video_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src).name("video_sink")
+            .with_target(&video_pad).unwrap().build();
+        let audio_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src).name("audio_sink")
+            .with_target(&audio_pad).unwrap().build();
 
+        let obj = self.obj();
         obj.add_pad(&video_ghost_pad).unwrap();
         obj.add_pad(&audio_ghost_pad).unwrap();
     }
@@ -70,7 +71,7 @@ impl GstObjectImpl for DkcDummySink {}
 
 impl ElementImpl for DkcDummySink {
     fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {
-        static ELEMENT_METADATA: Lazy<gst::subclass::ElementMetadata> = Lazy::new(|| {
+        static ELEMENT_METADATA: LazyLock<gst::subclass::ElementMetadata> = LazyLock::new(|| {
             gst::subclass::ElementMetadata::new(
                 "DankCaster Dummy Sink",
                 "Audio/Video",
@@ -83,7 +84,7 @@ impl ElementImpl for DkcDummySink {
     }
 
     fn pad_templates() -> &'static [gst::PadTemplate] {
-        static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
+        static PAD_TEMPLATES: LazyLock<Vec<gst::PadTemplate>> = LazyLock::new(|| {
             // sink pad capabilities
             let video_caps = gst::Caps::builder("video/x-raw")
                 .build();

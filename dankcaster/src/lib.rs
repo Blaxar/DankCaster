@@ -80,7 +80,7 @@ pub fn make_app(name: Option<&str>, width : u16, height: u16) -> Result<App, Err
 
     let app = Rc::new( AppImpl { width, height,
                                  gst_bin: gst::Pipeline::new(name),
-                                 gst_scene: gst::ElementFactory::make("dkcscene", name).unwrap(),
+                                 gst_scene: gst::ElementFactory::make("dkcscene").name(name.unwrap()).build().unwrap(),
                                  sources: RefCell::new(vec![]),
                                  scenes: RefCell::new(vec![]),
                                  sinks: RefCell::new(vec![])});
@@ -95,8 +95,7 @@ impl App {
                        source_type: &str,
                        name: Option<&str>) -> Result<Rc<Source>, Error> {
 
-        match gst::ElementFactory::make(&format!("dkc{}source", source_type),
-                                        name) {
+        match gst::ElementFactory::make(&format!("dkc{}source", source_type)).name(name.unwrap()).build() {
             Ok(element) => {
                 let id = self.app.sources.borrow_mut().len();
                 let element_name = element.name();
@@ -165,8 +164,7 @@ impl App {
                      sink_type: &str,
                      name: Option<&str>) -> Result<Rc<Sink>, Error> {
 
-        match gst::ElementFactory::make(&format!("dkc{}sink", sink_type),
-                                        name) {
+        match gst::ElementFactory::make(&format!("dkc{}sink", sink_type)).name(name.unwrap()).build() {
             Ok(element) => {
                 let id = self.app.sinks.borrow_mut().len();
                 let element_name = element.name();

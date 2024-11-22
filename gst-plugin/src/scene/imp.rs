@@ -3,7 +3,7 @@ use gst::prelude::*;
 use gst::subclass::prelude::*;
 use std::sync::Mutex;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 struct State {
     video_mixer: gst::Element,
@@ -15,13 +15,13 @@ struct State {
 impl State {
     fn new() -> Self {
         Self {
-            video_mixer: gst::ElementFactory::make("compositor", None)
+            video_mixer: gst::ElementFactory::make("compositor").build()
                 .expect("Could not create video source element."),
-            audio_mixer: gst::ElementFactory::make("audiomixer", None)
+            audio_mixer: gst::ElementFactory::make("audiomixer").build()
                 .expect("Could not create audio source element."),
-            video_tee: gst::ElementFactory::make("tee", None)
+            video_tee: gst::ElementFactory::make("tee").build()
                 .expect("Could not create video tee element."),
-            audio_tee: gst::ElementFactory::make("tee", None)
+            audio_tee: gst::ElementFactory::make("tee").build()
                 .expect("Could not create audio tee element."),
         }
     }
@@ -32,7 +32,7 @@ pub struct DkcScene {
     state: Mutex<Option<State>>
 }
 
-static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
+static CAT: LazyLock<gst::DebugCategory> = LazyLock::new(|| {
     gst::DebugCategory::new(
         "dkcscene",
         gst::DebugColorFlags::empty(),
@@ -97,15 +97,9 @@ impl DkcScene {
         let param_name = args[2].get::<String>().expect("signal arg");
         let param_value = args[3].get::<glib::variant::Variant>().expect("signal arg");
 
-        let video_caps = gst::Caps::new_simple(
-            "video/x-raw",
-            &[],
-        );
+        let video_caps = gst::Caps::new_empty_simple("video/x-raw");
 
-        let audio_caps = gst::Caps::new_simple(
-            "audio/x-raw",
-            &[],
-        );
+        let audio_caps = gst::Caps::new_empty_simple("audio/x-raw");
 
         match bin.static_pad(&sink_pad_name) {
             Some(pad) => match pad.direction() {
@@ -133,13 +127,13 @@ impl ObjectSubclass for DkcScene {
 }
 
 impl ObjectImpl for DkcScene {
-    fn constructed(&self, obj: &Self::Type) {
+    fn constructed(&self) {
         let state = State::new();
 
-        self.add_element(obj, &state.video_mixer).expect("Could not add video mixer to bin.");
-        self.add_element(obj, &state.audio_mixer).expect("Could not add audio mixer to bin");
-        self.add_element(obj, &state.video_tee).expect("Could not add video tee to bin");
-        self.add_element(obj, &state.audio_tee).expect("Could not add audio tee to bin");
+        self.add_element(&state.video_mixer).expect("Could not add video mixer to bin.");
+        self.add_element(&state.audio_mixer).expect("Could not add audio mixer to bin");
+        self.add_element(&state.video_tee).expect("Could not add video tee to bin");
+        self.add_element(&state.audio_tee).expect("Could not add audio tee to bin");
 
         state.video_mixer.link(&state.video_tee)
             .expect("Could not link video mixer to its tee element.");
@@ -150,17 +144,15 @@ impl ObjectImpl for DkcScene {
     }
 
     fn signals() -> &'static [glib::subclass::Signal] {
-        static SIGNALS: Lazy<Vec<glib::subclass::Signal>> = Lazy::new(|| {
+        static SIGNALS: LazyLock<Vec<glib::subclass::Signal>> = LazyLock::new(|| {
             vec![
-                glib::subclass::Signal::builder(
-                    "update-input",
-                    &[String::static_type().into(), String::static_type().into(),
-                      glib::variant::Variant::static_type().into()],
-                    bool::static_type().into(),
-                )
-                .action()
-                .class_handler(&DkcScene::class_update_input_handler)
-                .build()
+                glib::subclass::Signal::builder("update-input")
+                    .param_types([String::static_type(),
+                                   String::static_type(),
+                                   glib::variant::Variant::static_type()])
+                    .return_type::<bool>()
+                    .class_handler(&DkcScene::class_update_input_handler)
+                    .build()
             ]
         });
 
@@ -171,7 +163,7 @@ impl ObjectImpl for DkcScene {
 impl GstObjectImpl for DkcScene {}
 
 fn handle_sink_request(
-    element: &crate::scene::DkcScene,
+    element: &crate::scene::imp::DkcScene,
     templ: &gst::PadTemplate,
     tmpl_caps: &gst::Caps,
     video_mixer: &gst::Element,
@@ -180,9 +172,9 @@ fn handle_sink_request(
     audio_caps: &gst::Caps,
 ) -> Option<gst::Pad> {
 
-    let queue = gst::ElementFactory::make("queue", None)
+    let queue = gst::ElementFactory::make("queue").build()
             .expect("Could not create input queue element.");
-    element.add(&queue).expect("Could not add input queue element to the bin");
+    element.obj().add(&queue).expect("Could not add input queue element to the bin");
     let queue_sink_pad = queue.static_pad("sink").unwrap();
     let queue_src_pad = queue.static_pad("src").unwrap();
 
@@ -193,10 +185,9 @@ fn handle_sink_request(
         queue_src_pad.link(&mixer_pad).expect("Could not link queue element to video mixer");
 
         /* Add ghost video sink pad to the element (targeting mixer sink) */
-        let ghost_pad = gst::GhostPad::from_template_with_target(&templ,
-                                                                 Some(&*ghost_pad_name),
-                                                                 &queue_sink_pad).unwrap();
-        element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
+        let ghost_pad = gst::GhostPad::builder_from_template_with_target(templ, &queue_sink_pad).unwrap()
+            .name(ghost_pad_name).build();
+        element.obj().add_pad(&ghost_pad).expect("Could not add ghost pad to element");
 
         Some(ghost_pad.upcast::<gst::Pad>())
 
@@ -207,10 +198,9 @@ fn handle_sink_request(
         queue_src_pad.link(&mixer_pad).expect("Could not link queue element to audio mixer");
 
         /* Add ghost video sink pad to the element (targeting mixer sink) */
-        let ghost_pad = gst::GhostPad::from_template_with_target(templ,
-                                                                 Some(&*ghost_pad_name),
-                                                                 &queue_sink_pad).unwrap();
-        element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
+        let ghost_pad = gst::GhostPad::builder_from_template_with_target(templ, &queue_sink_pad).unwrap()
+            .name(ghost_pad_name).build();
+        element.obj().add_pad(&ghost_pad).expect("Could not add ghost pad to element");
 
         Some(ghost_pad.upcast::<gst::Pad>())
 
@@ -219,7 +209,7 @@ fn handle_sink_request(
 }
 
 fn handle_src_request(
-    element: &crate::scene::DkcScene,
+    element: &crate::scene::imp::DkcScene,
     templ: &gst::PadTemplate,
     tmpl_caps: &gst::Caps,
     video_tee: &gst::Element,
@@ -234,17 +224,16 @@ fn handle_src_request(
         let ghost_pad_name = format!("video_{}", tee_pad.name());
 
         /* Create, add and link tee queue */
-        let queue = gst::ElementFactory::make("queue", None)
+        let queue = gst::ElementFactory::make("queue").build()
             .expect("Could not create queue element for video mixer tee.");
-        element.add(&queue).expect("Could not add queue element for video mixer to the bin");
+        element.obj().add(&queue).expect("Could not add queue element for video mixer to the bin");
         video_tee.link(&queue).expect("Could not link queue element to video tee");
 
         /* Add ghost video src pad to the element (targeting queue src) */
         let queue_pad = queue.static_pad("src").unwrap();
-        let ghost_pad = gst::GhostPad::from_template_with_target(templ,
-                                                                 Some(&*ghost_pad_name),
-                                                                 &queue_pad).unwrap();
-        element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
+        let ghost_pad = gst::GhostPad::builder_from_template_with_target(templ, &queue_pad).unwrap()
+            .name(ghost_pad_name).build();
+        element.obj().add_pad(&ghost_pad).expect("Could not add ghost pad to element");
 
         Some(ghost_pad.upcast::<gst::Pad>())
 
@@ -254,17 +243,16 @@ fn handle_src_request(
         let ghost_pad_name = format!("audio_{}", tee_pad.name());
 
         /* Create, add and link tee queue */
-        let queue = gst::ElementFactory::make("queue", None)
+        let queue = gst::ElementFactory::make("queue").build()
             .expect("Could not create queue element for audio mixer tee.");
-        element.add(&queue).expect("Could not add queue element for audio mixer to the bin");
+        element.obj().add(&queue).expect("Could not add queue element for audio mixer to the bin");
         audio_tee.link(&queue).expect("Could not link queue element to audio tee");
 
         /* Add ghost audio src pad to the element (targeting queue src) */
         let queue_pad = queue.static_pad("src").unwrap();
-        let ghost_pad = gst::GhostPad::from_template_with_target(templ,
-                                                                 Some(&*ghost_pad_name),
-                                                                 &queue_pad).unwrap();
-        element.add_pad(&ghost_pad).expect("Could not add ghost pad to element");
+        let ghost_pad = gst::GhostPad::builder_from_template_with_target(templ, &queue_pad).unwrap()
+            .name(ghost_pad_name).build();
+        element.obj().add_pad(&ghost_pad).expect("Could not add ghost pad to element");
 
         Some(ghost_pad.upcast::<gst::Pad>())
 
@@ -274,7 +262,7 @@ fn handle_src_request(
 
 impl ElementImpl for DkcScene {
     fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {
-        static ELEMENT_METADATA: Lazy<gst::subclass::ElementMetadata> = Lazy::new(|| {
+        static ELEMENT_METADATA: LazyLock<gst::subclass::ElementMetadata> = LazyLock::new(|| {
             gst::subclass::ElementMetadata::new(
                 "DankCaster Scene",
                 "Audio/Video",
@@ -287,16 +275,10 @@ impl ElementImpl for DkcScene {
     }
 
     fn pad_templates() -> &'static [gst::PadTemplate] {
-        static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
-            let video_caps = gst::Caps::new_simple(
-                "video/x-raw",
-                &[],
-            );
+        static PAD_TEMPLATES: LazyLock<Vec<gst::PadTemplate>> = LazyLock::new(|| {
+            let video_caps = gst::Caps::new_empty_simple("video/x-raw");
 
-            let audio_caps = gst::Caps::new_simple(
-                "audio/x-raw",
-                &[],
-            );
+            let audio_caps = gst::Caps::new_empty_simple("audio/x-raw");
 
             let video_src_pad_template = gst::PadTemplate::new(
                 "video_src_%u",
@@ -334,20 +316,13 @@ impl ElementImpl for DkcScene {
 
     fn request_new_pad(
         &self,
-        element: &Self::Type,
         templ: &gst::PadTemplate,
-        _name: Option<String>,
+        _name: Option<&str>,
         caps: Option<&gst::Caps>,
     ) -> Option<gst::Pad> {
-        let video_caps = gst::Caps::new_simple(
-            "video/x-raw",
-            &[],
-        );
+        let video_caps = gst::Caps::new_empty_simple("video/x-raw");
 
-        let audio_caps = gst::Caps::new_simple(
-            "audio/x-raw",
-            &[],
-        );
+        let audio_caps = gst::Caps::new_empty_simple("audio/x-raw");
 
         let state_lock = self.state.lock().unwrap();
         let state = state_lock.as_ref().unwrap();
@@ -359,13 +334,13 @@ impl ElementImpl for DkcScene {
                 match caps {
                     Some(caps_ref) =>
                         if tmpl_caps.is_always_compatible(caps_ref) {
-                            handle_sink_request(element, templ, &tmpl_caps,
+                            handle_sink_request(self, templ, &tmpl_caps,
                                                 &state.video_mixer, &state.audio_mixer,
                                                 &video_caps, &audio_caps)
                         } else {
                             None
                         },
-                    None => handle_sink_request(element, templ, &tmpl_caps,
+                    None => handle_sink_request(self, templ, &tmpl_caps,
                                                 &state.video_mixer, &state.audio_mixer,
                                                 &video_caps, &audio_caps)
                 },
@@ -373,13 +348,13 @@ impl ElementImpl for DkcScene {
                 match caps {
                     Some(caps_ref) =>
                         if tmpl_caps.is_always_compatible(caps_ref) {
-                            handle_src_request(element, templ, &tmpl_caps,
+                            handle_src_request(self, templ, &tmpl_caps,
                                                &state.video_tee, &state.audio_tee,
                                                &video_caps, &audio_caps)
                         } else {
                             None
                         },
-                    None => handle_src_request(element, templ, &tmpl_caps,
+                    None => handle_src_request(self, templ, &tmpl_caps,
                                                &state.video_tee, &state.audio_tee,
                                                &video_caps, &audio_caps)
                 },
@@ -387,7 +362,7 @@ impl ElementImpl for DkcScene {
         }
     }
 
-    fn release_pad(&self, element: &Self::Type, pad: &gst::Pad) {
+    fn release_pad(&self, pad: &gst::Pad) {
         match pad.direction() {
             gst::PadDirection::Sink => {
                 match pad.downcast_ref::<gst::GhostPad>().unwrap().target() {
@@ -401,7 +376,7 @@ impl ElementImpl for DkcScene {
                         mixer.release_request_pad(&mixer_sink_pad);
 
                         // remove queue
-                        element.remove(&queue).expect("Could not remove sink queue from bin");
+                        self.obj().remove(&queue).expect("Could not remove sink queue from bin");
                     },
                     None => ()
                 }
@@ -418,7 +393,7 @@ impl ElementImpl for DkcScene {
                         tee.release_request_pad(&tee_src_pad);
 
                         // remove queue
-                        element.remove(&queue).expect("Could not remove src queue from bin");
+                        self.obj().remove(&queue).expect("Could not remove src queue from bin");
                     },
                     None => ()
                 }
@@ -427,7 +402,7 @@ impl ElementImpl for DkcScene {
         };
 
         /* remove ghost pad */
-        element.remove_pad(pad).expect("Could not remove ghost sink pad");
+        self.obj().remove_pad(pad).expect("Could not remove ghost sink pad");
     }
 }
 

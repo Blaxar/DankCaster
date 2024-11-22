@@ -2,14 +2,14 @@ use gst::glib;
 use gst::prelude::*;
 use gst::subclass::prelude::*;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 #[derive(Default)]
 pub struct DkcDummySource {
 
 }
 
-static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
+static CAT: LazyLock<gst::DebugCategory> = LazyLock::new(|| {
     gst::DebugCategory::new(
         "dkcdummysource",
         gst::DebugColorFlags::empty(),
@@ -25,21 +25,24 @@ impl ObjectSubclass for DkcDummySource {
 }
 
 impl ObjectImpl for DkcDummySource {
-    fn constructed(&self, obj: &Self::Type) {
-        let video_elem = gst::ElementFactory::make("videotestsrc", Some("testvideosource"))
+    fn constructed(&self) {
+        let video_elem = gst::ElementFactory::make("videotestsrc").name("testvideosource").build()
             .expect("Could not create video source element.");
-        let audio_elem = gst::ElementFactory::make("audiotestsrc", Some("testaudiosource"))
+        let audio_elem = gst::ElementFactory::make("audiotestsrc").name("testaudiosource").build()
             .expect("Could not create audio source element.");
 
-        self.add_element(obj, &video_elem).expect("Could not add video element to this source");
-        self.add_element(obj, &audio_elem).expect("Could not add audio element to this source");
+        self.add_element(&video_elem).expect("Could not add video element to this source");
+        self.add_element(&audio_elem).expect("Could not add audio element to this source");
 
         let video_pad = video_elem.static_pad("src").unwrap();
         let audio_pad = audio_elem.static_pad("src").unwrap();
 
-        let video_ghost_pad = gst::GhostPad::with_target(Some("video_src"), &video_pad).unwrap();
-        let audio_ghost_pad = gst::GhostPad::with_target(Some("audio_src"), &audio_pad).unwrap();
+        let video_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src).name("video_src")
+            .with_target(&video_pad).unwrap().build();
+        let audio_ghost_pad = gst::GhostPad::builder(gst::PadDirection::Src).name("audio_src")
+            .with_target(&audio_pad).unwrap().build();
 
+        let obj = self.obj();
         obj.add_pad(&video_ghost_pad).unwrap();
         obj.add_pad(&audio_ghost_pad).unwrap();
     }
@@ -49,7 +52,7 @@ impl GstObjectImpl for DkcDummySource {}
 
 impl ElementImpl for DkcDummySource {
     fn metadata() -> Option<&'static gst::subclass::ElementMetadata> {
-        static ELEMENT_METADATA: Lazy<gst::subclass::ElementMetadata> = Lazy::new(|| {
+        static ELEMENT_METADATA: LazyLock<gst::subclass::ElementMetadata> = LazyLock::new(|| {
             gst::subclass::ElementMetadata::new(
                 "DankCaster Dummy Source",
                 "Audio/Video",
@@ -62,7 +65,7 @@ impl ElementImpl for DkcDummySource {
     }
 
     fn pad_templates() -> &'static [gst::PadTemplate] {
-        static PAD_TEMPLATES: Lazy<Vec<gst::PadTemplate>> = Lazy::new(|| {
+        static PAD_TEMPLATES: LazyLock<Vec<gst::PadTemplate>> = LazyLock::new(|| {
             // src pad capabilities
             let video_caps = gst::Caps::builder("video/x-raw")
                 .build();

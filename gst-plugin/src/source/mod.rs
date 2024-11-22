@@ -16,7 +16,7 @@ pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
     gst::Element::register(
         Some(plugin),
         "dkcdummysource",
-        gst::Rank::None,
+        gst::Rank::NONE,
         DkcDummySource::static_type(),
     )
 }
